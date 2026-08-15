@@ -19,17 +19,16 @@ CPUアーキテクチャ向けになるため、一般配布用には64 bit版Wi
 
 配布先では `SmartMouseReceiver.exe` をダブルクリックして起動します。初回起動時に
 Windows Defender Firewallの確認が表示されたら「プライベート ネットワーク」を許可してください。
-QRコード画面が開き、SmartMouse Receiverはタスクトレイに常駐します。
-QRコードをiPhoneアプリで読み取るか、表示URLをSafariで開きます。
-終了するときはタスクトレイアイコンを右クリックして `Exit` を選びます。
+通常画面に表示されるQRコードをiPhoneアプリで読み取ります。画面を閉じると
+タスクトレイへ収納され、黒いコンソール画面は表示されません。
 
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.1.0
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.3.0
 ```
 
-`release\SmartMouseReceiver-v0.1.0.zip` に、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.3.0.zip` に、QR接続案内、バージョン、
 警告の出ないSHA-256チェックサムを含む配布物が生成されます。
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -40,21 +39,16 @@ powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.1.0
 Pythonから直接起動する場合のみ、以下を実行します。配布されたexeの実行には不要です。
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-addon.txt
 ```
 
 ## 起動
 
 ```bash
-python main.py
+python receiver_gui.py
 ```
 
-起動すると、PCのLAN内IPv4アドレスを使ったURLが表示されます。
-
-```text
-Open this URL on your iPhone Safari:
-http://192.168.x.x:8000
-```
+起動すると、PCのLAN内IPv4アドレスを含んだQRコードが通常画面に表示されます。
 
 ## iPhone接続
 
@@ -88,4 +82,4 @@ http://192.168.x.x:8000
 - iPhoneから開けない場合は、WindowsファイアウォールでPythonの通信が許可されているか確認してください。
 - PCとiPhoneが同じWi-Fiにいるか確認してください。
 - カーソルが画面左上に移動して止まる場合は、PyAutoGUIのフェイルセーフが働いている可能性があります。マウスを左上から離して再度操作してください。
-- クリックやカーソル移動が効かない場合は、PC側のターミナルログにエラーが出ていないか確認してください。
+- クリックやカーソル移動が効かない場合は、Receiver画面の「問題の記録を開く」からログを確認してください。

@@ -1,0 +1,389 @@
+"""SmartMouse ReceiverのWindows GUI／タスクトレイ版エントリーポイント。"""
+
+from __future__ import annotations
+
+import logging
+import os
+import socket
+import sys
+import threading
+import tkinter as tk
+from pathlib import Path
+from tkinter import messagebox
+
+import pystray
+import qrcode
+import uvicorn
+from PIL import Image, ImageDraw, ImageTk
+from zeroconf import IPVersion, ServiceInfo, Zeroconf
+
+from main import APP_VERSION, HOST, PORT, app, get_lan_ip
+import main as receiver
+
+
+APP_NAME = "SmartMouse Receiver"
+ACCENT = "#34DB9F"
+BACKGROUND = "#111416"
+PANEL = "#1C2023"
+TEXT = "#F6F7F8"
+SECONDARY = "#9DA3A8"
+
+
+def app_data_dir() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+    path = Path(base) / "SmartMouse"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+LOG_PATH = app_data_dir() / "receiver.log"
+logging.basicConfig(
+    filename=LOG_PATH,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    encoding="utf-8",
+    force=True,
+)
+logger = logging.getLogger(APP_NAME)
+
+
+def tray_image() -> Image.Image:
+    image = Image.new("RGBA", (64, 64), BACKGROUND)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((5, 5, 59, 59), radius=15, fill=ACCENT)
+    draw.ellipse((19, 16, 45, 42), fill=BACKGROUND)
+    draw.rectangle((29, 37, 35, 52), fill=BACKGROUND)
+    return image
+
+
+class ReceiverServer:
+    def __init__(self) -> None:
+        self.server: uvicorn.Server | None = None
+        self.zeroconf: Zeroconf | None = None
+        self.service_info: ServiceInfo | None = None
+        self.error = ""
+        self.running = False
+        self.stopping = False
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, name="SmartMouseServer", daemon=True).start()
+
+    def _run(self) -> None:
+        ip_address = get_lan_ip()
+        encoded_ip = ip_address.replace(".", "-")
+        service_type = "_smartmouse._tcp.local."
+        self.service_info = ServiceInfo(
+            service_type,
+            f"SmartMouse-{encoded_ip}.{service_type}",
+            addresses=[socket.inet_aton(ip_address)],
+            port=PORT,
+            properties={"path": "/ws", "version": APP_VERSION},
+            server=f"smartmouse-{encoded_ip}.local.",
+        )
+
+        try:
+            self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
+            self.zeroconf.register_service(self.service_info)
+        except Exception as exc:
+            logger.warning("Bonjour registration failed: %s", exc)
+
+        try:
+            config = uvicorn.Config(
+                app,
+                host=HOST,
+                port=PORT,
+                log_level="info",
+                log_config=None,
+            )
+            self.server = uvicorn.Server(config)
+            self.running = True
+            logger.info("Receiver v%s started at ws://%s:%s/ws", APP_VERSION, ip_address, PORT)
+            self.server.run()
+            if not self.stopping:
+                self.error = "受信機が停止しました。8000番ポートが使用中でないか確認してください。"
+        except Exception as exc:
+            self.error = str(exc)
+            logger.exception("Receiver failed")
+        finally:
+            self.running = False
+            if self.zeroconf:
+                try:
+                    if self.service_info:
+                        self.zeroconf.unregister_service(self.service_info)
+                    self.zeroconf.close()
+                except Exception:
+                    logger.exception("Bonjour cleanup failed")
+
+    def stop(self) -> None:
+        self.stopping = True
+        if self.server:
+            self.server.should_exit = True
+
+
+class ReceiverWindow:
+    def __init__(self) -> None:
+        self.server = ReceiverServer()
+        self.root = tk.Tk()
+        self.root.title(APP_NAME)
+        self.root.geometry("480x680")
+        self.root.minsize(420, 620)
+        self.root.configure(bg=BACKGROUND)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
+        self.start_minimized = "--minimized" in sys.argv
+
+        self.connection_url = f"ws://{get_lan_ip()}:{PORT}/ws"
+        self.qr_photo: ImageTk.PhotoImage | None = None
+        self.status_text = tk.StringVar(value="受信機を起動しています…")
+        self.status_color = SECONDARY
+        self.startup_enabled = tk.BooleanVar(value=self.is_startup_enabled())
+        self.tray = self.make_tray()
+
+        self.build_ui()
+        self.server.start()
+        threading.Thread(target=self.tray.run, name="SmartMouseTray", daemon=True).start()
+        self.poll_status()
+        if self.start_minimized:
+            self.root.after(50, self.root.withdraw)
+
+    def build_ui(self) -> None:
+        content = tk.Frame(self.root, bg=BACKGROUND, padx=28, pady=22)
+        content.pack(fill="both", expand=True)
+
+        tk.Label(
+            content, text="SmartMouse Receiver", bg=BACKGROUND, fg=TEXT,
+            font=("Segoe UI", 24, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            content, text="iPhoneをWindowsのマウス・キーボードに",
+            bg=BACKGROUND, fg=SECONDARY, font=("Yu Gothic UI", 10),
+        ).pack(anchor="w", pady=(2, 18))
+
+        status_panel = tk.Frame(content, bg=PANEL, padx=14, pady=11)
+        status_panel.pack(fill="x")
+        self.status_dot = tk.Label(
+            status_panel, text="●", bg=PANEL, fg=SECONDARY,
+            font=("Segoe UI", 13, "bold"),
+        )
+        self.status_dot.pack(side="left")
+        tk.Label(
+            status_panel, textvariable=self.status_text, bg=PANEL, fg=TEXT,
+            font=("Yu Gothic UI", 11, "bold"),
+        ).pack(side="left", padx=(8, 0))
+
+        qr_panel = tk.Frame(content, bg=PANEL, padx=18, pady=18)
+        qr_panel.pack(fill="both", expand=True, pady=14)
+        tk.Label(
+            qr_panel, text="iPhoneアプリで読み取ってください",
+            bg=PANEL, fg=TEXT, font=("Yu Gothic UI", 13, "bold"),
+        ).pack(pady=(0, 12))
+
+        qr = qrcode.QRCode(border=2, box_size=9)
+        qr.add_data(self.connection_url)
+        qr.make(fit=True)
+        qr_image = qr.make_image(fill_color="#111416", back_color="#FFFFFF").convert("RGB")
+        qr_image.thumbnail((290, 290), Image.Resampling.LANCZOS)
+        self.qr_photo = ImageTk.PhotoImage(qr_image)
+        tk.Label(qr_panel, image=self.qr_photo, bg=PANEL).pack()
+        tk.Label(
+            qr_panel, text=self.connection_url, bg=PANEL, fg=SECONDARY,
+            font=("Consolas", 9),
+        ).pack(pady=(10, 0))
+
+        tk.Label(
+            content,
+            text="iPhoneとこのPCを同じWi‑Fiにつないでください。",
+            bg=BACKGROUND, fg=SECONDARY, font=("Yu Gothic UI", 10),
+        ).pack()
+
+        startup = tk.Checkbutton(
+            content,
+            text="Windowsへのサインイン時に自動で起動",
+            variable=self.startup_enabled,
+            command=self.toggle_startup,
+            bg=BACKGROUND,
+            fg=TEXT,
+            activebackground=BACKGROUND,
+            activeforeground=TEXT,
+            selectcolor=PANEL,
+            font=("Yu Gothic UI", 10),
+        )
+        startup.pack(anchor="w", pady=(14, 8))
+
+        buttons = tk.Frame(content, bg=BACKGROUND)
+        buttons.pack(fill="x")
+        tk.Button(
+            buttons, text="タスクトレイにしまう", command=self.hide_to_tray,
+            bg=ACCENT, fg="#07110D", activebackground="#28BD87",
+            relief="flat", font=("Yu Gothic UI", 10, "bold"), padx=14, pady=9,
+        ).pack(side="left", fill="x", expand=True)
+        tk.Button(
+            buttons, text="終了", command=self.confirm_exit,
+            bg=PANEL, fg=TEXT, activebackground="#292E31",
+            relief="flat", font=("Yu Gothic UI", 10, "bold"), padx=14, pady=9,
+        ).pack(side="left", padx=(8, 0))
+        tk.Button(
+            content, text="問題の記録を開く", command=self.open_log,
+            bg=BACKGROUND, fg=SECONDARY, activebackground=BACKGROUND,
+            activeforeground=TEXT, relief="flat", font=("Yu Gothic UI", 9),
+        ).pack(anchor="e", pady=(6, 0))
+
+    def make_tray(self) -> pystray.Icon:
+        menu = pystray.Menu(
+            pystray.MenuItem("QRコードを表示", self.show_from_tray, default=True),
+            pystray.MenuItem("終了", self.exit_from_tray),
+        )
+        return pystray.Icon("SmartMouseReceiver", tray_image(), APP_NAME, menu)
+
+    def poll_status(self) -> None:
+        if self.server.error:
+            self.status_text.set("起動できませんでした")
+            self.status_dot.configure(fg="#FF5C5C")
+        elif receiver.connected_clients > 0:
+            self.status_text.set("iPhoneと接続済み")
+            self.status_dot.configure(fg=ACCENT)
+        elif self.server.running:
+            self.status_text.set("接続待機中")
+            self.status_dot.configure(fg="#F0B84B")
+        else:
+            self.status_text.set("受信機を起動しています…")
+            self.status_dot.configure(fg=SECONDARY)
+        self.root.after(500, self.poll_status)
+
+    def hide_to_tray(self) -> None:
+        self.root.withdraw()
+        try:
+            self.tray.notify(
+                "SmartMouse Receiverはバックグラウンドで動作しています。",
+                APP_NAME,
+            )
+        except Exception:
+            pass
+
+    def show_from_tray(self, _icon=None, _item=None) -> None:
+        self.root.after(0, self.show_window)
+
+    def show_window(self) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def exit_from_tray(self, _icon=None, _item=None) -> None:
+        self.root.after(0, self.exit_app)
+
+    def confirm_exit(self) -> None:
+        if messagebox.askyesno(
+            APP_NAME,
+            "Receiverを終了すると、iPhoneから操作できなくなります。終了しますか？",
+            parent=self.root,
+        ):
+            self.exit_app()
+
+    def exit_app(self) -> None:
+        self.server.stop()
+        try:
+            self.tray.stop()
+        finally:
+            self.root.destroy()
+
+    def open_log(self) -> None:
+        try:
+            if sys.platform == "win32":
+                os.startfile(LOG_PATH)  # type: ignore[attr-defined]
+        except Exception as exc:
+            messagebox.showerror(
+                APP_NAME,
+                f"問題の記録を開けませんでした。\n\n{LOG_PATH}\n\n{exc}",
+                parent=self.root,
+            )
+
+    def toggle_startup(self) -> None:
+        try:
+            self.set_startup_enabled(self.startup_enabled.get())
+        except Exception as exc:
+            logger.exception("Startup setting failed")
+            self.startup_enabled.set(not self.startup_enabled.get())
+            messagebox.showerror(
+                APP_NAME,
+                f"自動起動の設定を変更できませんでした。\n\n{exc}",
+                parent=self.root,
+            )
+
+    @staticmethod
+    def startup_command() -> str:
+        if getattr(sys, "frozen", False):
+            return f'"{sys.executable}" --minimized'
+        script = Path(__file__).resolve()
+        return f'"{sys.executable}" "{script}" --minimized'
+
+    @staticmethod
+    def is_startup_enabled() -> bool:
+        if sys.platform != "win32":
+            return False
+        import winreg
+
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+            ) as key:
+                winreg.QueryValueEx(key, APP_NAME)
+            return True
+        except OSError:
+            return False
+
+    @classmethod
+    def set_startup_enabled(cls, enabled: bool) -> None:
+        if sys.platform != "win32":
+            return
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0,
+            winreg.KEY_SET_VALUE,
+        ) as key:
+            if enabled:
+                winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, cls.startup_command())
+            else:
+                try:
+                    winreg.DeleteValue(key, APP_NAME)
+                except FileNotFoundError:
+                    pass
+
+    def run(self) -> None:
+        self.root.mainloop()
+
+
+_single_instance_handle = None
+
+
+def acquire_single_instance() -> bool:
+    global _single_instance_handle
+    if sys.platform != "win32":
+        return True
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    _single_instance_handle = kernel32.CreateMutexW(None, False, "Local\\SmartMouseReceiver")
+    return kernel32.GetLastError() != 183
+
+
+if __name__ == "__main__":
+    try:
+        if acquire_single_instance():
+            ReceiverWindow().run()
+        else:
+            temporary_root = tk.Tk()
+            temporary_root.withdraw()
+            messagebox.showinfo(
+                APP_NAME,
+                "SmartMouse Receiverはすでに動作しています。\n"
+                "画面右下のタスクトレイから開いてください。",
+                parent=temporary_root,
+            )
+            temporary_root.destroy()
+    except Exception:
+        logger.exception("Uncaught GUI error")
+        raise

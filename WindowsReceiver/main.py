@@ -22,6 +22,8 @@ PORT = 8000
 MAX_MOVE_DELTA = 100
 MAX_SCROLL_AMOUNT = 30
 MAX_TEXT_LENGTH = 5000
+APP_VERSION = "0.3.0"
+connected_clients = 0
 
 
 app = FastAPI(title="SmartMouse Emergency Mouse Keyboard")
@@ -36,12 +38,26 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "ready",
+        "version": APP_VERSION,
+        "connected": str(connected_clients > 0).lower(),
+    }
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    global connected_clients
     await websocket.accept()
-    print(f"WebSocket connected: {websocket.client}")
+    connected_clients += 1
 
     try:
+        await websocket.send_json(
+            {"type": "receiver_ready", "version": APP_VERSION, "protocol": "1"}
+        )
+        print(f"WebSocket connected: {websocket.client}")
         while True:
             message = await websocket.receive_text()
             try:
@@ -53,6 +69,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 print(f"Mouse command failed: {exc}")
     except WebSocketDisconnect:
         print(f"WebSocket disconnected: {websocket.client}")
+    finally:
+        connected_clients = max(0, connected_clients - 1)
+        # 通信断の瞬間にドラッグ中でも、Windows側の押下状態を残さない。
+        pyautogui.mouseUp(button="left")
 
 
 def handle_mouse_message(data: dict[str, Any]) -> None:

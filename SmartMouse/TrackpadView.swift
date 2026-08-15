@@ -22,6 +22,10 @@ struct TrackpadView: UIViewRepresentable {
         let view = UIView()
         view.backgroundColor = .clear
         view.isMultipleTouchEnabled = true
+        view.isAccessibilityElement = true
+        view.accessibilityTraits = [.allowsDirectInteraction]
+        view.accessibilityLabel = "タッチ操作エリア"
+        view.accessibilityHint = "指でなぞってカーソル移動、1本指でタップ、2本指で右クリックします"
 
         let move = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.move(_:)))
         move.minimumNumberOfTouches = 1
@@ -60,6 +64,7 @@ struct TrackpadView: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         uiView.isUserInteractionEnabled = isEnabled
+        uiView.accessibilityValue = isEnabled ? "接続済み、操作できます" : "未接続"
         context.coordinator.onMove = onMove
         context.coordinator.onScroll = onScroll
         context.coordinator.onTap = onTap
