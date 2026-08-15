@@ -605,7 +605,8 @@ def get_lan_ip() -> str:
 
 def print_startup_banner() -> None:
     ip_address = get_lan_ip()
-    url = f"http://{ip_address}:{PORT}"
+    # 合言葉付きのURLでないとWebSocketは拒否されるため、必ずtokenを添えて案内する。
+    url = f"http://{ip_address}:{PORT}/?token={PAIRING_TOKEN}"
     print()
     print("=" * 48)
     print("SmartMouse Emergency Mouse Keyboard")
@@ -613,6 +614,9 @@ def print_startup_banner() -> None:
     print()
     print("Open this URL on your iPhone Safari:")
     print(url)
+    print()
+    print("iPhone app connection URL:")
+    print(f"ws://{ip_address}:{PORT}/ws?token={PAIRING_TOKEN}")
     print()
     print("Keep your iPhone and PC on the same Wi-Fi/LAN.")
     print("Press Ctrl+C to stop.")

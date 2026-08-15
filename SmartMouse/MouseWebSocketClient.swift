@@ -25,9 +25,12 @@ final class MouseWebSocketClient: ObservableObject {
     @Published private(set) var latencyMilliseconds: Int?
     @Published private(set) var receiverVersion = ""
     @Published private(set) var protocolCompatible = true
+    /// QRコードの読み取りが必要な状態。Receiver再起動でトークンが変わった場合も立つ。
+    @Published private(set) var needsPairing = false
 
     private var task: URLSessionWebSocketTask?
     private lazy var session = URLSession(configuration: .default)
+    private var handshakeCompleted = false
     private var pendingMoveX = 0.0
     private var pendingMoveY = 0.0
     private var moveFlushTask: Task<Void, Never>?
@@ -40,9 +43,16 @@ final class MouseWebSocketClient: ObservableObject {
         reconnectTask?.cancel()
         reconnectTask = nil
         shouldReconnect = true
+        needsPairing = false
         lastAddress = address
         reconnectAttempt = 0
         beginConnection(to: address)
+    }
+
+    /// 保存済みのアドレスだけで接続を再開できるか。トークンが無ければReceiverに拒否される。
+    nonisolated static func canConnect(to address: String) -> Bool {
+        guard let url = webSocketURL(from: address) else { return false }
+        return pairingToken(from: url) != nil
     }
 
     func retryNow() {
@@ -54,10 +64,21 @@ final class MouseWebSocketClient: ObservableObject {
 
     private func beginConnection(to address: String) {
         cancelTransport()
+        handshakeCompleted = false
 
         guard let url = Self.webSocketURL(from: address) else {
             state = .failed("接続先の形式が正しくありません")
             recoveryHint = "QRコードをもう一度読み取るか、設定のアドレスを確認してください。"
+            needsPairing = true
+            return
+        }
+
+        // Receiverは起動ごとに変わる合言葉付きのURLしか受け付けない。
+        // 合言葉が無いまま接続してもすぐ切断されるので、先にQRコードへ誘導する。
+        guard Self.pairingToken(from: url) != nil else {
+            state = .failed("QRコードの読み取りが必要です")
+            recoveryHint = "Windowsの画面に出ているQRコードを読み取ると、接続先と合言葉がまとめて設定されます。"
+            needsPairing = true
             return
         }
 
@@ -77,6 +98,7 @@ final class MouseWebSocketClient: ObservableObject {
         latencyMilliseconds = nil
         receiverVersion = ""
         protocolCompatible = true
+        needsPairing = false
         reconnectTask?.cancel()
         reconnectTask = nil
         cancelTransport()
@@ -227,6 +249,8 @@ final class MouseWebSocketClient: ObservableObject {
                         self.task = nil
                         return
                     }
+                    self.handshakeCompleted = true
+                    self.needsPairing = false
                     self.state = .connected
                     self.recoveryHint = ""
                     self.reconnectAttempt = 0
@@ -262,15 +286,36 @@ final class MouseWebSocketClient: ObservableObject {
 
     private func handleConnectionFailure(_ error: Error, task failedTask: URLSessionWebSocketTask) {
         guard task === failedTask else { return }
+        let closeCode = failedTask.closeCode
+        let failedBeforeHandshake = !handshakeCompleted
         task = nil
         latencyMilliseconds = nil
         heartbeatTask?.cancel()
         heartbeatTask = nil
 
+        // Receiverは合言葉が違うとWebSocketを開いた直後にpolicy violationで閉じる。
+        // 同じ合言葉で再試行しても通らないため、再接続せずQRコードへ誘導する。
+        if closeCode == .policyViolation || (failedBeforeHandshake && Self.isServerSideClose(error)) {
+            needsPairing = true
+            state = .failed("接続の許可が切れています")
+            recoveryHint = "Receiverを起動し直すとQRコードが変わります。Windows画面の新しいQRコードを読み取ってください。"
+            return
+        }
+
         let details = Self.friendlyMessage(for: error)
         state = .failed(details.title)
         recoveryHint = details.hint
         scheduleReconnect()
+    }
+
+    /// PCまで届いた後に切られたか（＝合言葉切れの可能性が高いか）を判定する。
+    nonisolated private static func isServerSideClose(_ error: Error) -> Bool {
+        switch (error as? URLError)?.code {
+        case .notConnectedToInternet, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+            return false
+        default:
+            return true
+        }
     }
 
     private func scheduleReconnect() {
@@ -299,17 +344,35 @@ final class MouseWebSocketClient: ObservableObject {
         }
     }
 
-    private static func webSocketURL(from address: String) -> URL? {
+    nonisolated static func webSocketURL(from address: String) -> URL? {
         var value = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return nil }
-        if !value.hasPrefix("ws://") && !value.hasPrefix("wss://") {
+        if !value.contains("://") {
             value = "ws://\(value)"
         }
         guard var components = URLComponents(string: value), components.host != nil else {
             return nil
         }
+        // Receiver画面のWeb UI用URL（http://…?token=…）を読み取っても接続できるようにする。
+        switch components.scheme?.lowercased() {
+        case "ws", "wss":
+            break
+        case "http":
+            components.scheme = "ws"
+        case "https":
+            components.scheme = "wss"
+        default:
+            return nil
+        }
         if components.port == nil { components.port = 8000 }
         if components.path.isEmpty || components.path == "/" { components.path = "/ws" }
         return components.url
+    }
+
+    nonisolated private static func pairingToken(from url: URL) -> String? {
+        guard let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let token = items.first(where: { $0.name == "token" })?.value,
+              token.count == 32 else { return nil }
+        return token
     }
 }

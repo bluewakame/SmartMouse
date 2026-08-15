@@ -25,3 +25,14 @@ def build_connection_url(ip_address: str, port: int, token: str) -> str:
     if not is_valid_pairing_token(token, token):
         raise ValueError("Invalid pairing token")
     return f"ws://{ip_address}:{port}/ws?token={token}"
+
+
+def build_service_name(ip_address: str) -> str:
+    """iPhoneアプリはBonjourサービス名の末尾から合言葉を取り出すため、形式を固定する。"""
+    return f"SmartMouse-{ip_address.replace('.', '-')}"
+
+
+def build_service_instance(ip_address: str, token: str) -> str:
+    if not is_valid_pairing_token(token, token):
+        raise ValueError("Invalid pairing token")
+    return f"{build_service_name(ip_address)}-{token}"

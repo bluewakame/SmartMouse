@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from main import HOST, PAIRING_TOKEN, PORT, app, get_lan_ip
+from receiver_protocol import build_service_instance
 
 
 if sys.stdout is None:
@@ -67,7 +68,7 @@ class SmartMouseTrayApp:
         service_type = "_smartmouse._tcp.local."
         return ServiceInfo(
             service_type,
-            f"SmartMouse-{encoded_ip}-{PAIRING_TOKEN}.{service_type}",
+            f"{build_service_instance(self.ip_address, PAIRING_TOKEN)}.{service_type}",
             addresses=[socket.inet_aton(self.ip_address)],
             port=PORT,
             properties={"path": "/ws", "token": PAIRING_TOKEN},
