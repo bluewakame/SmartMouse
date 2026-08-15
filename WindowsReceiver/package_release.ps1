@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "0.4.0",
     [string]$CertificateThumbprint = "",
     [string]$DownloadUrl = ""
