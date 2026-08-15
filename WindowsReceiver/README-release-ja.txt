@@ -1,4 +1,4 @@
-SmartMouse Receiver v0.4.0
+SmartMouse Receiver v0.4.1
 ==========================
 
 これは、iPhoneをWindows PCの緊急用マウス・キーボードとして使うための
