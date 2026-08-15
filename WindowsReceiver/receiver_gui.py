@@ -7,9 +7,11 @@ import os
 import socket
 import sys
 import threading
+import time
 import tkinter as tk
+import zipfile
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 
 import pystray
 import qrcode
@@ -17,8 +19,9 @@ import uvicorn
 from PIL import Image, ImageDraw, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
-from main import APP_VERSION, HOST, PORT, app, get_lan_ip
+from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, get_lan_ip
 import main as receiver
+from receiver_protocol import build_connection_url
 
 
 APP_NAME = "SmartMouse Receiver"
@@ -74,10 +77,15 @@ class ReceiverServer:
         service_type = "_smartmouse._tcp.local."
         self.service_info = ServiceInfo(
             service_type,
-            f"SmartMouse-{encoded_ip}.{service_type}",
+            f"SmartMouse-{encoded_ip}-{PAIRING_TOKEN}.{service_type}",
             addresses=[socket.inet_aton(ip_address)],
             port=PORT,
-            properties={"path": "/ws", "version": APP_VERSION},
+            properties={
+                "path": "/ws",
+                "version": APP_VERSION,
+                "token": PAIRING_TOKEN,
+                "protocol": PROTOCOL_VERSION,
+            },
             server=f"smartmouse-{encoded_ip}.local.",
         )
 
@@ -88,19 +96,28 @@ class ReceiverServer:
             logger.warning("Bonjour registration failed: %s", exc)
 
         try:
-            config = uvicorn.Config(
-                app,
-                host=HOST,
-                port=PORT,
-                log_level="info",
-                log_config=None,
-            )
-            self.server = uvicorn.Server(config)
-            self.running = True
-            logger.info("Receiver v%s started at ws://%s:%s/ws", APP_VERSION, ip_address, PORT)
-            self.server.run()
+            for attempt in range(1, 4):
+                config = uvicorn.Config(
+                    app,
+                    host=HOST,
+                    port=PORT,
+                    log_level="info",
+                    log_config=None,
+                )
+                self.server = uvicorn.Server(config)
+                self.running = True
+                logger.info(
+                    "Receiver v%s started at ws://%s:%s/ws (attempt %s)",
+                    APP_VERSION, ip_address, PORT, attempt,
+                )
+                self.server.run()
+                self.running = False
+                if self.stopping:
+                    break
+                logger.warning("Receiver stopped unexpectedly; restarting")
+                time.sleep(2)
             if not self.stopping:
-                self.error = "受信機が停止しました。8000番ポートが使用中でないか確認してください。"
+                self.error = "自動復旧できませんでした。8000番ポートを確認してください。"
         except Exception as exc:
             self.error = str(exc)
             logger.exception("Receiver failed")
@@ -131,7 +148,7 @@ class ReceiverWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self.start_minimized = "--minimized" in sys.argv
 
-        self.connection_url = f"ws://{get_lan_ip()}:{PORT}/ws"
+        self.connection_url = build_connection_url(get_lan_ip(), PORT, PAIRING_TOKEN)
         self.qr_photo: ImageTk.PhotoImage | None = None
         self.status_text = tk.StringVar(value="受信機を起動しています…")
         self.status_color = SECONDARY
@@ -221,11 +238,18 @@ class ReceiverWindow:
             bg=PANEL, fg=TEXT, activebackground="#292E31",
             relief="flat", font=("Yu Gothic UI", 10, "bold"), padx=14, pady=9,
         ).pack(side="left", padx=(8, 0))
+        diagnostic_buttons = tk.Frame(content, bg=BACKGROUND)
+        diagnostic_buttons.pack(fill="x", pady=(6, 0))
         tk.Button(
-            content, text="問題の記録を開く", command=self.open_log,
+            diagnostic_buttons, text="問題の記録を開く", command=self.open_log,
             bg=BACKGROUND, fg=SECONDARY, activebackground=BACKGROUND,
             activeforeground=TEXT, relief="flat", font=("Yu Gothic UI", 9),
-        ).pack(anchor="e", pady=(6, 0))
+        ).pack(side="right")
+        tk.Button(
+            diagnostic_buttons, text="診断情報を保存", command=self.save_diagnostics,
+            bg=BACKGROUND, fg=SECONDARY, activebackground=BACKGROUND,
+            activeforeground=TEXT, relief="flat", font=("Yu Gothic UI", 9),
+        ).pack(side="left")
 
     def make_tray(self) -> pystray.Icon:
         menu = pystray.Menu(
@@ -293,6 +317,38 @@ class ReceiverWindow:
             messagebox.showerror(
                 APP_NAME,
                 f"問題の記録を開けませんでした。\n\n{LOG_PATH}\n\n{exc}",
+                parent=self.root,
+            )
+
+    def save_diagnostics(self) -> None:
+        destination = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="診断情報を保存",
+            initialfile="SmartMouse-Diagnostics.zip",
+            defaultextension=".zip",
+            filetypes=[("ZIPファイル", "*.zip")],
+        )
+        if not destination:
+            return
+        try:
+            info = (
+                f"SmartMouse Receiver v{APP_VERSION}\n"
+                f"Protocol: {PROTOCOL_VERSION}\n"
+                f"Connected clients: {receiver.connected_clients}\n"
+                f"Address: {get_lan_ip()}:{PORT}\n"
+            )
+            info_path = app_data_dir() / "diagnostics.txt"
+            info_path.write_text(info, encoding="utf-8")
+            with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+                if LOG_PATH.exists():
+                    archive.write(LOG_PATH, "receiver.log")
+                archive.write(info_path, "diagnostics.txt")
+            messagebox.showinfo(APP_NAME, "診断情報を保存しました。", parent=self.root)
+        except Exception as exc:
+            logger.exception("Diagnostics export failed")
+            messagebox.showerror(
+                APP_NAME,
+                f"診断情報を保存できませんでした。\n\n{exc}",
                 parent=self.root,
             )
 

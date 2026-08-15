@@ -50,7 +50,9 @@ let ignorePointerUntil = 0;
 function connect() {
   clearTimeout(reconnectTimer);
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${protocol}//${location.host}/ws`);
+  const token = new URLSearchParams(location.search).get("token") || "";
+  const query = token ? `?token=${encodeURIComponent(token)}` : "";
+  ws = new WebSocket(`${protocol}//${location.host}/ws${query}`);
 
   ws.addEventListener("open", () => {
     reconnectDelay = 400;

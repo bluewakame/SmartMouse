@@ -6,6 +6,9 @@ struct ContentView: View {
     @StateObject private var discovery = ReceiverDiscovery()
     @AppStorage("receiverAddress") private var receiverAddress = "192.168.1.2:8000"
     @AppStorage("pointerSensitivity") private var sensitivity = 1.5
+    @AppStorage("pointerAcceleration") private var pointerAcceleration = true
+    @AppStorage("scrollSensitivity") private var scrollSensitivity = 1.0
+    @AppStorage("leftHandedControls") private var leftHandedControls = false
     @AppStorage("tutorialVersion") private var tutorialVersion = 0
     @State private var inputText = ""
     @State private var dragLocked = false
@@ -19,7 +22,6 @@ struct ContentView: View {
     @FocusState private var inputFocused: Bool
 
     private let accent = Color(red: 0.20, green: 0.86, blue: 0.62)
-    private let panel = Color(red: 0.095, green: 0.105, blue: 0.11)
     private let control = Color(red: 0.16, green: 0.17, blue: 0.18)
 
     var body: some View {
@@ -30,8 +32,6 @@ struct ContentView: View {
                     touchpadArea(topInset: geometry.safeAreaInsets.top)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .layoutPriority(1)
-                    keyboardPanel
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             }
@@ -97,7 +97,7 @@ struct ContentView: View {
             LinearGradient(
                 colors: dragLocked
                     ? [Color(red: 0.07, green: 0.16, blue: 0.12), Color(red: 0.06, green: 0.10, blue: 0.09)]
-                    : [panel, Color(red: 0.075, green: 0.08, blue: 0.085)],
+                    : [Color(red: 0.095, green: 0.105, blue: 0.11), Color(red: 0.075, green: 0.08, blue: 0.085)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -105,11 +105,12 @@ struct ContentView: View {
                 isEnabled: client.state == .connected, isDragLocked: dragLocked,
                 onMove: {
                     dismissKeyboard()
-                    client.sendMove(dx: $0.width * sensitivity, dy: $0.height * sensitivity)
+                    let delta = accelerated($0)
+                    client.sendMove(dx: delta.width, dy: delta.height)
                 },
                 onScroll: {
                     dismissKeyboard()
-                    client.sendScroll(amount: -$0 / 8)
+                    client.sendScroll(amount: (-$0 / 8) * scrollSensitivity)
                 },
                 onTap: {
                     dismissKeyboard()
@@ -138,6 +139,8 @@ struct ContentView: View {
                         .padding(.trailing, 40)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
+                keyboardPanel
+                    .padding(.trailing, 40)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 10) {
                         Image(systemName: dragLocked ? "hand.point.up.left.fill" : "hand.draw.fill")
@@ -159,25 +162,40 @@ struct ContentView: View {
                         gestureHint(icon: "hand.tap", text: "1本指：タップ")
                         gestureHint(icon: "hand.tap.fill", text: "2本指：右クリック")
                     }
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.top, 14)
                 .padding(.horizontal, 14)
-                .padding(.trailing, 58)
+                .padding(.trailing, 18)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(dragLocked ? 0.30 : 0.20),
+                            accent.opacity(dragLocked ? 0.18 : 0.10)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(accent.opacity(dragLocked ? 0.55 : 0.30), lineWidth: 1.5)
+                }
+                .padding(.trailing, 40)
+                .padding(.vertical, 8)
                 .allowsHitTesting(false)
-                Spacer()
                 actionButtons
             }
             .padding(.horizontal, 8)
 
-            RoundedRectangle(cornerRadius: 20)
-                .strokeBorder(Color.white.opacity(dragLocked ? 0.22 : 0.09), lineWidth: 1.5)
-                .padding(.horizontal, 8)
-                .padding(.top, 76)
-                .padding(.bottom, 76)
-                .allowsHitTesting(false)
-
-            HStack { Spacer(); scrollRail }
+            HStack {
+                if !leftHandedControls { Spacer() }
+                scrollRail
+                if leftHandedControls { Spacer() }
+            }
+                .padding(.leading, leftHandedControls ? 2 : 0)
                 .padding(.trailing, 2)
                 .padding(.top, 2)
                 .padding(.bottom, 2)
@@ -204,7 +222,7 @@ struct ContentView: View {
             Button { showingSettings = true } label: {
                 HStack(spacing: 6) {
                     Circle().fill(client.state == .connected ? accent : .red).frame(width: 8, height: 8)
-                    Text(client.state == .connected ? "接続済み" : "未接続")
+                    Text(connectionStatusLabel)
                         .font(.caption.weight(.bold))
                         .lineLimit(1)
                         .foregroundStyle(client.state == .connected ? Color.white.opacity(0.82) : .secondary)
@@ -223,6 +241,12 @@ struct ContentView: View {
         }
         .padding(.top, 6)
         .padding(.trailing, 40)
+    }
+
+    private var connectionStatusLabel: String {
+        guard client.state == .connected else { return client.state.label }
+        if let latency = client.latencyMilliseconds { return "接続済み · \(latency)ms" }
+        return "接続済み"
     }
 
     private var connectionBanner: some View {
@@ -270,7 +294,7 @@ struct ContentView: View {
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             controlButton("コピー", systemImage: "doc.on.doc") {
                 if dragLocked {
                     dragLocked = false
@@ -289,6 +313,11 @@ struct ContentView: View {
                 dragLocked.toggle()
                 dragLocked ? client.sendMouseDown() : client.sendMouseUp()
             }
+            controlButton("全解除", systemImage: "exclamationmark.arrow.triangle.2.circlepath") {
+                dragLocked = false
+                client.sendReleaseAll()
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
         }
         .frame(height: 44)
         .padding(.trailing, 40)
@@ -297,7 +326,10 @@ struct ContentView: View {
 
     private func controlButton(_ title: String, systemImage: String, active: Bool = false,
                                action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             HStack(spacing: 5) {
                 Image(systemName: systemImage).font(.system(size: 13, weight: .semibold))
                 Text(title)
@@ -387,13 +419,14 @@ struct ContentView: View {
             .frame(height: 42)
         }
         .padding(.horizontal, 6).padding(.vertical, 4)
-        .background(Color(red: 0.055, green: 0.06, blue: 0.065))
+        .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Button("送信") { sendInput(pressEnter: false) }
                     .disabled(inputText.isEmpty)
                 Button("エンター") { sendInput(pressEnter: true) }
-                    .disabled(inputText.isEmpty)
                 Spacer()
                 Button("完了") { dismissKeyboard() }
                     .fontWeight(.semibold)
@@ -404,7 +437,10 @@ struct ContentView: View {
     private func keyboardButton(_ title: String, systemImage: String? = nil,
                                 primary: Bool = false, compact: Bool = false,
                                 action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             HStack(spacing: 5) {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
@@ -419,10 +455,34 @@ struct ContentView: View {
     }
 
     private func sendInput(pressEnter: Bool) {
-        guard !inputText.isEmpty else { return }
+        guard !inputText.isEmpty else {
+            if pressEnter {
+                client.sendEnter()
+                dismissKeyboard()
+            }
+            return
+        }
         client.sendText(inputText, pressEnter: pressEnter)
         inputText = ""
         dismissKeyboard()
+    }
+
+    private func accelerated(_ delta: CGSize) -> CGSize {
+        let distance = hypot(delta.width, delta.height)
+        let acceleration: CGFloat
+        if !pointerAcceleration {
+            acceleration = 1
+        } else if distance > 18 {
+            acceleration = 1.8
+        } else if distance > 8 {
+            acceleration = 1.35
+        } else {
+            acceleration = 0.82
+        }
+        return CGSize(
+            width: delta.width * sensitivity * acceleration,
+            height: delta.height * sensitivity * acceleration
+        )
     }
 
     private func dismissKeyboard() {
@@ -504,6 +564,27 @@ struct ContentView: View {
                 Section("カーソル感度") {
                     Slider(value: $sensitivity, in: 0.5...3.0, step: 0.1)
                     Text(String(format: "%.1fx", sensitivity))
+                    Toggle("カーソル加速", isOn: $pointerAcceleration)
+                }
+
+                Section("スクロール") {
+                    Slider(value: $scrollSensitivity, in: 0.5...2.5, step: 0.1)
+                    Text(String(format: "%.1fx", scrollSensitivity))
+                    Toggle("スクロールバーを左側に配置", isOn: $leftHandedControls)
+                }
+
+                Section("接続情報") {
+                    if client.state == .connected {
+                        LabeledContent("Receiver", value: client.receiverVersion.isEmpty ? "不明" : "v\(client.receiverVersion)")
+                        LabeledContent(
+                            "通信遅延",
+                            value: client.latencyMilliseconds.map { "\($0) ms" } ?? "計測中"
+                        )
+                    }
+                    Button("すべてのキーとボタンを解除", role: .destructive) {
+                        dragLocked = false
+                        client.sendReleaseAll()
+                    }
                 }
 
                 Section("ヘルプ") {
