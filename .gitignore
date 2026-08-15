@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Xcode user data and build output
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+
+# Local tools
+.tools/
+
+# Windows build output
+*.spec.bak

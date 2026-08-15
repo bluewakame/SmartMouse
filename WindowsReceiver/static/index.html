@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>SmartMouse Emergency Mouse Keyboard</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="touchpad" class="touchpad" aria-label="Touchpad">
+        <header class="topbar">
+          <div class="brand">
+            <h1>SmartMouse</h1>
+            <p>Emergency Mouse Keyboard</p>
+          </div>
+          <div class="top-actions">
+            <p id="status" class="status disconnected">Disconnected</p>
+          </div>
+        </header>
+        <div class="touchpad-label">
+          <strong>TOUCHPAD</strong>
+          <span>1 finger click, 2 fingers right click</span>
+        </div>
+        <div id="scrollRail" class="scroll-rail" aria-label="Scroll">
+          <div id="scrollThumb" class="scroll-thumb"></div>
+        </div>
+        <button id="dragLock" class="drag-lock" type="button">Grab</button>
+        <div class="clipboard-actions">
+          <button id="copySelection" type="button">Copy</button>
+          <button id="pasteClipboard" type="button">Paste</button>
+        </div>
+      </section>
+
+      <section id="keyboardPanel" class="keyboard-panel">
+        <div class="keyboard-sheet">
+          <textarea id="textInput" rows="1" autocomplete="off" autocapitalize="sentences" placeholder="iPhone keyboardで入力"></textarea>
+          <div class="keyboard-actions">
+            <button id="pasteText" class="primary-action" type="button">Send</button>
+            <button id="pasteEnterText" type="button">Search</button>
+            <button id="typeBackspace" type="button">⌫</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
