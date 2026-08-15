@@ -36,7 +36,6 @@ struct ContentView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea(.container, edges: [.top, .bottom])
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingSettings) { settingsSheet }
         .sheet(isPresented: $showingTutorial) {
