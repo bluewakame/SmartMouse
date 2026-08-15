@@ -9,10 +9,9 @@ from typing import Any
 import pyautogui
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from receiver_protocol import (
     PROTOCOL_VERSION,
+    build_connection_url,
     create_pairing_token,
     is_valid_pairing_token,
 )
@@ -21,7 +20,6 @@ from receiver_protocol import (
 # PyInstaller extracts bundled data into ``sys._MEIPASS`` for a one-file build.
 # In a normal Python launch the assets continue to live next to this module.
 APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-STATIC_DIR = APP_DIR / "static"
 HOST = "0.0.0.0"
 PORT = 8000
 MAX_MOVE_DELTA = 100
@@ -33,15 +31,9 @@ connected_clients = 0
 
 
 app = FastAPI(title="SmartMouse Emergency Mouse Keyboard")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0
-
-
-@app.get("/")
-async def index() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
@@ -607,14 +599,13 @@ def get_lan_ip() -> str:
 
 def print_startup_banner() -> None:
     ip_address = get_lan_ip()
-    url = f"http://{ip_address}:{PORT}"
     print()
     print("=" * 48)
     print("SmartMouse Emergency Mouse Keyboard")
-    print("SmartMouse Server Started")
+    print(f"Receiver v{APP_VERSION} (protocol {PROTOCOL_VERSION}) started")
     print()
-    print("Open this URL on your iPhone Safari:")
-    print(url)
+    print("Pair the iPhone app with this address:")
+    print(build_connection_url(ip_address, PORT, PAIRING_TOKEN))
     print()
     print("Keep your iPhone and PC on the same Wi-Fi/LAN.")
     print("Press Ctrl+C to stop.")

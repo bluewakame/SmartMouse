@@ -9,7 +9,7 @@ a = Analysis(
     ["receiver_gui.py"],
     pathex=[],
     binaries=[],
-    datas=[("static", "static")],
+    datas=[],
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},

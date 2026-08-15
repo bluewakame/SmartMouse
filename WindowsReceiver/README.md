@@ -1,13 +1,16 @@
 # SmartMouse Emergency Mouse Keyboard
 
-iPhone SafariをWindows PCの緊急用マウス・キーボードとして使うMVPです。
-PC側でPythonサーバーを起動し、同じWi-Fi/LAN上のiPhoneからブラウザで操作します。
+iPhoneをWindows PCの緊急用マウス・キーボードとして使うためのWindows側受信機です。
+PC側でこのReceiverを起動し、同じWi-Fi/LAN上のiPhoneからSmartMouseアプリで接続します。
 
 ## 対象環境
 
 - Windows 10 / Windows 11
-- Python 3.11以上
-- iPhone Safari
+- Python 3.11以上（配布exeを使う場合は不要）
+- SmartMouse iPhoneアプリ（`SmartMouse.xcodeproj`）
+
+ReceiverはWebSocket（`/ws`）とヘルスチェック（`/health`）のみを提供します。
+ブラウザ用の操作画面は持ちません。
 
 ## 配布用exeを作成する
 
@@ -68,8 +71,14 @@ python receiver_gui.py
 ## iPhone接続
 
 1. Windows PCとiPhoneを同じWi-Fi/LANへ接続します。
-2. PCで表示された `http://192.168.x.x:8000` をiPhone Safariで開きます。
-3. 画面上部の表示が `Connected` になったら操作できます。
+2. Receiver画面のQRコードを、SmartMouse iPhoneアプリで読み取ります。
+3. アプリ上部の表示が `接続済み` になったら操作できます。
+
+同じLAN上であれば、アプリはBonjour（`_smartmouse._tcp`）でReceiverを自動検出して接続します。
+
+> ペアリングトークンはReceiverの起動ごとに変わります。Receiverを再起動したら、
+> アプリでQRコードを読み直すか、自動検出から選び直してください。
+> 古いトークンのままでは、WebSocketが `1008` で切断されます。
 
 ## 操作
 
@@ -79,22 +88,31 @@ python receiver_gui.py
 - 画面を2本指で短くタップ: 右クリック
 - 画面を素早く2回タップ: ダブルクリック
 - 画面を長押ししてから移動: ドラッグ
-- `Grab`: クリックを押したままにする。カーソル移動後に `Drop` で離す
-- `Copy`: 選択中の文字列をPC側でコピー。`Grab`中に押すと、離してからコピー
-- `Paste`: PC側クリップボードを貼り付け
-- `Send`: iPhoneで入力・変換した文字をPCへ貼り付け
-- `Search`: iPhoneで入力・変換した文字をPCへ貼り付けてEnter
+- `つかむ`: クリックを押したままにする。カーソル移動後にもう一度押して離す
+- `コピー`: 選択中の文字列をPC側でコピー
+- `貼り付け`: PC側クリップボードを貼り付け
+- `送信`: iPhoneで入力・変換した文字をPCへ貼り付け
+- `エンター`: PCへEnterを送信
 - `⌫`: 入力欄の文字を削除。空の時はPCへBackspace
+- `全解除`: 押しっぱなしになったマウスボタンや修飾キーをPC側で解放
 
-基本はiPhone側でいつも通り日本語入力し、バックスペースや変換もiPhoneキーボード上で済ませてから `Send` または `Search` を使います。
+基本はiPhone側でいつも通り日本語入力し、バックスペースや変換もiPhoneキーボード上で済ませてから `送信` を使います。
 
 ## セキュリティ
 
-このMVPはLAN内専用です。サーバーは `0.0.0.0:8000` で待ち受けますが、ルーターやファイアウォールでインターネットに公開しないでください。
+LAN内専用です。サーバーは `0.0.0.0:8000` で待ち受けますが、ルーターやファイアウォールでインターネットに公開しないでください。
+
+WebSocketの接続には、Receiver起動ごとに生成される32桁のペアリングトークンが必要です
+（`receiver_protocol.py`）。トークンを持たない接続は、操作コマンドを受け付ける前に切断されます。
 
 ## トラブルシューティング
 
-- iPhoneから開けない場合は、WindowsファイアウォールでPythonの通信が許可されているか確認してください。
+- iPhoneから接続できない場合は、WindowsファイアウォールでPythonの通信が許可されているか確認してください。
 - PCとiPhoneが同じWi-Fiにいるか確認してください。
+- 到達性の確認は、iPhoneのSafariで `http://<PCのIP>:8000/health` を開くのが確実です。
+  `{"status":"ready","version":...,"protocol":...}` が返れば、経路とReceiverは正常です。
+- アプリが「Receiverの更新が必要です」と表示する場合は、そこに出ているプロトコル番号を確認してください。
+  配布パッケージのフォルダー名のバージョンは、コード側の `APP_VERSION` とは独立しています。
+  実際に動いているコードの値は `python -c "import main, receiver_protocol; print(main.APP_VERSION, receiver_protocol.PROTOCOL_VERSION)"` で確認できます。
 - カーソルが画面左上に移動して止まる場合は、PyAutoGUIのフェイルセーフが働いている可能性があります。マウスを左上から離して再度操作してください。
 - クリックやカーソル移動が効かない場合は、Receiver画面の「問題の記録を開く」からログを確認してください。

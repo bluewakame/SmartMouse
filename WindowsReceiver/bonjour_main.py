@@ -5,7 +5,6 @@ import os
 import sys
 import threading
 import tkinter as tk
-import webbrowser
 
 import pystray
 import qrcode
@@ -25,7 +24,6 @@ if sys.stderr is None:
 class SmartMouseTrayApp:
     def __init__(self) -> None:
         self.ip_address = get_lan_ip()
-        self.web_url = f"http://{self.ip_address}:{PORT}/?token={PAIRING_TOKEN}"
         self.connection_url = f"ws://{self.ip_address}:{PORT}/ws?token={PAIRING_TOKEN}"
         self.service_info = self.create_service_info()
         self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
@@ -115,8 +113,7 @@ class SmartMouseTrayApp:
 
         buttons = tk.Frame(frame, bg="#f7f9fb")
         buttons.pack(fill="x")
-        tk.Button(buttons, text="Open Web UI", command=self.open_web_ui).pack(side="left")
-        tk.Button(buttons, text="Copy URL", command=self.copy_url).pack(side="left", padx=8)
+        tk.Button(buttons, text="Copy URL", command=self.copy_url).pack(side="left")
         tk.Button(buttons, text="Hide", command=self.hide_window).pack(side="right")
 
     def create_qr_photo(self) -> ImageTk.PhotoImage:
@@ -163,9 +160,6 @@ class SmartMouseTrayApp:
 
     def hide_window(self) -> None:
         self.root.withdraw()
-
-    def open_web_ui(self) -> None:
-        webbrowser.open(self.web_url)
 
     def copy_url(self) -> None:
         self.root.clipboard_clear()
