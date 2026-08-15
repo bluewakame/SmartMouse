@@ -24,9 +24,12 @@ final class MouseWebSocketClient: ObservableObject {
     @Published private(set) var reconnectAttempt = 0
     @Published private(set) var latencyMilliseconds: Int?
     @Published private(set) var receiverVersion = ""
+    @Published private(set) var receiverProtocol = ""
     @Published private(set) var protocolCompatible = true
     /// QRコードの読み取りが必要な状態。Receiver再起動でトークンが変わった場合も立つ。
     @Published private(set) var needsPairing = false
+
+    static let requiredProtocol = "2"
 
     private var task: URLSessionWebSocketTask?
     private lazy var session = URLSession(configuration: .default)
@@ -97,6 +100,7 @@ final class MouseWebSocketClient: ObservableObject {
         recoveryHint = ""
         latencyMilliseconds = nil
         receiverVersion = ""
+        receiverProtocol = ""
         protocolCompatible = true
         needsPairing = false
         reconnectTask?.cancel()
@@ -235,16 +239,24 @@ final class MouseWebSocketClient: ObservableObject {
                           let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                           payload["type"] as? String == "receiver_ready" else {
                         self.state = .failed("Receiverを確認できません")
-                        self.recoveryHint = "最新版のSmartMouseReceiver.exeを起動してください。"
+                        self.recoveryHint = "\(Self.displayEndpoint(for: self.lastAddress))はSmartMouse Receiverとして応答しませんでした。最新版のReceiverが起動しているか確認してください。"
                         task.cancel(with: .policyViolation, reason: nil)
                         self.task = nil
                         return
                     }
                     self.receiverVersion = payload["version"] as? String ?? ""
-                    self.protocolCompatible = (payload["protocol"] as? String) == "2"
+                    self.receiverProtocol = payload["protocol"] as? String ?? "不明"
+                    self.protocolCompatible = self.receiverProtocol == Self.requiredProtocol
                     guard self.protocolCompatible else {
                         self.state = .failed("Receiverの更新が必要です")
-                        self.recoveryHint = "iPhoneアプリと互換性のある最新版Receiverを使用してください。"
+                        // 配布パッケージ名とコード側のバージョンは独立しているため、
+                        // 実際に受け取った値と接続先を出さないと切り分けができない。
+                        self.recoveryHint = """
+                        接続先 \(Self.displayEndpoint(for: self.lastAddress)) のReceiver \
+                        v\(self.receiverVersion.isEmpty ? "不明" : self.receiverVersion) は \
+                        プロトコル \(self.receiverProtocol) を返しました。\
+                        このアプリはプロトコル \(Self.requiredProtocol) が必要です。
+                        """
                         task.cancel(with: .policyViolation, reason: nil)
                         self.task = nil
                         return
@@ -342,6 +354,14 @@ final class MouseWebSocketClient: ObservableObject {
         default:
             return ("Windows PCへ接続できません", "受信機、同じWi‑Fi、Windowsファイアウォール、VPNの順に確認してください。")
         }
+    }
+
+    /// 画面表示用のホスト名とポート。ペアリングトークンは意図的に含めない。
+    private static func displayEndpoint(for address: String?) -> String {
+        guard let address, let url = webSocketURL(from: address), let host = url.host else {
+            return "接続先不明"
+        }
+        return "\(host):\(url.port ?? 8000)"
     }
 
     nonisolated static func webSocketURL(from address: String) -> URL? {

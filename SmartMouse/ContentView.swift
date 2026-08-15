@@ -617,8 +617,16 @@ struct ContentView: View {
                 }
 
                 Section("接続情報") {
+                    if !client.receiverVersion.isEmpty {
+                        LabeledContent("Receiver", value: "v\(client.receiverVersion)")
+                    }
+                    if !client.receiverProtocol.isEmpty {
+                        LabeledContent(
+                            "プロトコル",
+                            value: "\(client.receiverProtocol)（必要: \(MouseWebSocketClient.requiredProtocol)）"
+                        )
+                    }
                     if client.state == .connected {
-                        LabeledContent("Receiver", value: client.receiverVersion.isEmpty ? "不明" : "v\(client.receiverVersion)")
                         LabeledContent(
                             "通信遅延",
                             value: client.latencyMilliseconds.map { "\($0) ms" } ?? "計測中"
