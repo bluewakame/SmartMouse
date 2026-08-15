@@ -1,6 +1,7 @@
 param(
-    [string]$Version = "0.3.0",
-    [string]$CertificateThumbprint = ""
+    [string]$Version = "0.4.0",
+    [string]$CertificateThumbprint = "",
+    [string]$DownloadUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,7 +51,8 @@ $Hash = (Get-FileHash $PackagedExe -Algorithm SHA256).Hash
     version = $Version
     sha256 = $Hash
     minimumWindows = "10"
-    protocol = 1
+    protocol = 2
+    downloadUrl = $DownloadUrl
 } | ConvertTo-Json | Set-Content (Join-Path $Stage "release.json") -Encoding utf8
 
 Compress-Archive -Path $Stage -DestinationPath $Zip -CompressionLevel Optimal

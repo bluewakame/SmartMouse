@@ -11,6 +11,11 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from receiver_protocol import (
+    PROTOCOL_VERSION,
+    create_pairing_token,
+    is_valid_pairing_token,
+)
 
 
 # PyInstaller extracts bundled data into ``sys._MEIPASS`` for a one-file build.
@@ -22,7 +27,8 @@ PORT = 8000
 MAX_MOVE_DELTA = 100
 MAX_SCROLL_AMOUNT = 30
 MAX_TEXT_LENGTH = 5000
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
+PAIRING_TOKEN = create_pairing_token()
 connected_clients = 0
 
 
@@ -51,11 +57,17 @@ async def health() -> dict[str, str]:
 async def websocket_endpoint(websocket: WebSocket) -> None:
     global connected_clients
     await websocket.accept()
+    if not is_valid_pairing_token(
+        websocket.query_params.get("token", ""),
+        PAIRING_TOKEN,
+    ):
+        await websocket.close(code=1008, reason="Pairing token required")
+        return
     connected_clients += 1
 
     try:
         await websocket.send_json(
-            {"type": "receiver_ready", "version": APP_VERSION, "protocol": "1"}
+            {"type": "receiver_ready", "version": APP_VERSION, "protocol": PROTOCOL_VERSION}
         )
         print(f"WebSocket connected: {websocket.client}")
         while True:
@@ -72,11 +84,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     finally:
         connected_clients = max(0, connected_clients - 1)
         # 通信断の瞬間にドラッグ中でも、Windows側の押下状態を残さない。
-        pyautogui.mouseUp(button="left")
+        release_all_inputs()
 
 
 def handle_mouse_message(data: dict[str, Any]) -> None:
     message_type = data.get("type")
+
+    if message_type == "release_all":
+        release_all_inputs()
+        return
 
     if message_type == "move":
         dx = clamp_number(data.get("dx"), -MAX_MOVE_DELTA, MAX_MOVE_DELTA)
@@ -148,6 +164,13 @@ def handle_mouse_message(data: dict[str, Any]) -> None:
         return
 
     print(f"Unknown message type: {message_type!r}")
+
+
+def release_all_inputs() -> None:
+    for button in ("left", "right", "middle"):
+        pyautogui.mouseUp(button=button)
+    for key in ("ctrl", "shift", "alt", "win"):
+        pyautogui.keyUp(key)
 
 
 class KEYBDINPUT(ctypes.Structure):

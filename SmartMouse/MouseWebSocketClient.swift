@@ -22,6 +22,9 @@ final class MouseWebSocketClient: ObservableObject {
     @Published private(set) var state: ConnectionState = .disconnected
     @Published private(set) var recoveryHint = ""
     @Published private(set) var reconnectAttempt = 0
+    @Published private(set) var latencyMilliseconds: Int?
+    @Published private(set) var receiverVersion = ""
+    @Published private(set) var protocolCompatible = true
 
     private var task: URLSessionWebSocketTask?
     private lazy var session = URLSession(configuration: .default)
@@ -63,21 +66,7 @@ final class MouseWebSocketClient: ObservableObject {
         let newTask = session.webSocketTask(with: url)
         task = newTask
         newTask.resume()
-
-        newTask.sendPing { [weak self, weak newTask] error in
-            Task { @MainActor in
-                guard let self, let newTask, self.task === newTask else { return }
-                if let error {
-                    self.handleConnectionFailure(error, task: newTask)
-                } else {
-                    self.state = .connected
-                    self.recoveryHint = ""
-                    self.reconnectAttempt = 0
-                    self.receiveNextMessage(from: newTask)
-                    self.startHeartbeat(for: newTask)
-                }
-            }
-        }
+        receiveHandshake(from: newTask)
     }
 
     func disconnect() {
@@ -85,6 +74,9 @@ final class MouseWebSocketClient: ObservableObject {
         lastAddress = nil
         reconnectAttempt = 0
         recoveryHint = ""
+        latencyMilliseconds = nil
+        receiverVersion = ""
+        protocolCompatible = true
         reconnectTask?.cancel()
         reconnectTask = nil
         cancelTransport()
@@ -151,6 +143,15 @@ final class MouseWebSocketClient: ObservableObject {
         send(payload: ["type": "key", "key": "backspace"])
     }
 
+    func sendEnter() {
+        send(payload: ["type": "key", "key": "enter"])
+    }
+
+    func sendReleaseAll() {
+        flushPendingMove()
+        send(payload: ["type": "release_all"])
+    }
+
     func sendScroll(amount: Double) {
         send(payload: [
             "type": "scroll",
@@ -201,17 +202,58 @@ final class MouseWebSocketClient: ObservableObject {
         }
     }
 
+    private func receiveHandshake(from task: URLSessionWebSocketTask) {
+        task.receive { [weak self, weak task] result in
+            Task { @MainActor in
+                guard let self, let task, self.task === task else { return }
+                switch result {
+                case .success(let message):
+                    guard case .string(let text) = message,
+                          let data = text.data(using: .utf8),
+                          let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          payload["type"] as? String == "receiver_ready" else {
+                        self.state = .failed("Receiverを確認できません")
+                        self.recoveryHint = "最新版のSmartMouseReceiver.exeを起動してください。"
+                        task.cancel(with: .policyViolation, reason: nil)
+                        self.task = nil
+                        return
+                    }
+                    self.receiverVersion = payload["version"] as? String ?? ""
+                    self.protocolCompatible = (payload["protocol"] as? String) == "2"
+                    guard self.protocolCompatible else {
+                        self.state = .failed("Receiverの更新が必要です")
+                        self.recoveryHint = "iPhoneアプリと互換性のある最新版Receiverを使用してください。"
+                        task.cancel(with: .policyViolation, reason: nil)
+                        self.task = nil
+                        return
+                    }
+                    self.state = .connected
+                    self.recoveryHint = ""
+                    self.reconnectAttempt = 0
+                    self.receiveNextMessage(from: task)
+                    self.startHeartbeat(for: task)
+                case .failure(let error):
+                    self.handleConnectionFailure(error, task: task)
+                }
+            }
+        }
+    }
+
     private func startHeartbeat(for task: URLSessionWebSocketTask) {
         heartbeatTask?.cancel()
         heartbeatTask = Task { [weak self, weak task] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 guard !Task.isCancelled, let self, let task, self.task === task else { return }
+                let startedAt = Date()
                 task.sendPing { [weak self, weak task] error in
-                    guard let error else { return }
                     Task { @MainActor in
                         guard let self, let task, self.task === task else { return }
-                        self.handleConnectionFailure(error, task: task)
+                        if let error {
+                            self.handleConnectionFailure(error, task: task)
+                        } else {
+                            self.latencyMilliseconds = max(1, Int(Date().timeIntervalSince(startedAt) * 1_000))
+                        }
                     }
                 }
             }
@@ -221,6 +263,7 @@ final class MouseWebSocketClient: ObservableObject {
     private func handleConnectionFailure(_ error: Error, task failedTask: URLSessionWebSocketTask) {
         guard task === failedTask else { return }
         task = nil
+        latencyMilliseconds = nil
         heartbeatTask?.cancel()
         heartbeatTask = nil
 

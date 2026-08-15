@@ -33,8 +33,12 @@ final class ReceiverDiscovery: ObservableObject {
     private nonisolated static func receiver(from result: NWBrowser.Result) -> Receiver? {
         guard case let .service(name, _, _, _) = result.endpoint,
               name.hasPrefix("SmartMouse-") else { return nil }
-        let encodedIP = name.dropFirst("SmartMouse-".count)
-        let address = encodedIP.replacingOccurrences(of: "-", with: ".") + ":8000"
-        return Receiver(name: "SmartMouse (\(address))", address: address)
+        let payload = String(name.dropFirst("SmartMouse-".count))
+        let pieces = payload.split(separator: "-")
+        guard pieces.count >= 5, let token = pieces.last, token.count == 32 else { return nil }
+        let encodedIP = pieces.dropLast().joined(separator: "-")
+        let host = encodedIP.replacingOccurrences(of: "-", with: ".")
+        let address = "ws://\(host):8000/ws?token=\(token)"
+        return Receiver(name: "SmartMouse (\(host))", address: address)
     }
 }

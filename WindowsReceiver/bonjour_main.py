@@ -13,7 +13,7 @@ import uvicorn
 from PIL import Image, ImageDraw, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
-from main import HOST, PORT, app, get_lan_ip
+from main import HOST, PAIRING_TOKEN, PORT, app, get_lan_ip
 
 
 if sys.stdout is None:
@@ -25,8 +25,8 @@ if sys.stderr is None:
 class SmartMouseTrayApp:
     def __init__(self) -> None:
         self.ip_address = get_lan_ip()
-        self.web_url = f"http://{self.ip_address}:{PORT}"
-        self.connection_url = f"ws://{self.ip_address}:{PORT}/ws"
+        self.web_url = f"http://{self.ip_address}:{PORT}/?token={PAIRING_TOKEN}"
+        self.connection_url = f"ws://{self.ip_address}:{PORT}/ws?token={PAIRING_TOKEN}"
         self.service_info = self.create_service_info()
         self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
         self.server = uvicorn.Server(
@@ -67,10 +67,10 @@ class SmartMouseTrayApp:
         service_type = "_smartmouse._tcp.local."
         return ServiceInfo(
             service_type,
-            f"SmartMouse-{encoded_ip}.{service_type}",
+            f"SmartMouse-{encoded_ip}-{PAIRING_TOKEN}.{service_type}",
             addresses=[socket.inet_aton(self.ip_address)],
             port=PORT,
-            properties={"path": "/ws"},
+            properties={"path": "/ws", "token": PAIRING_TOKEN},
             server=f"smartmouse-{encoded_ip}.local.",
         )
 
