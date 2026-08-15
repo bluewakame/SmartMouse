@@ -1,2 +1,4 @@
 zeroconf>=0.147,<1.0
 qrcode>=8.0,<9.0
+pillow>=10.0,<13.0
+pystray>=0.19,<1.0

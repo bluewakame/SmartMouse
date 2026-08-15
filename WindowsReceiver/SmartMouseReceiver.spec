@@ -3,7 +3,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 
 
-hidden_imports = collect_submodules("uvicorn")
+hidden_imports = collect_submodules("uvicorn") + collect_submodules("pystray")
 
 a = Analysis(
     ["bonjour_main.py"],
@@ -31,7 +31,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

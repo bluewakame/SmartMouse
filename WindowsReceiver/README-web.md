@@ -19,8 +19,9 @@ CPUアーキテクチャ向けになるため、一般配布用には64 bit版Wi
 
 配布先では `SmartMouseReceiver.exe` をダブルクリックして起動します。初回起動時に
 Windows Defender Firewallの確認が表示されたら「プライベート ネットワーク」を許可してください。
-コンソールに表示されるQRコードをiPhoneアプリで読み取るか、表示URLをSafariで開きます。
-終了するときはコンソールで `Ctrl+C` を押すか、ウィンドウを閉じます。
+QRコード画面が開き、SmartMouse Receiverはタスクトレイに常駐します。
+QRコードをiPhoneアプリで読み取るか、表示URLをSafariで開きます。
+終了するときはタスクトレイアイコンを右クリックして `Exit` を選びます。
 
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 

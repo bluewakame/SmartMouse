@@ -5,12 +5,11 @@ title SmartMouse Receiver
 
 echo SmartMouse Receiverを起動しています...
 echo ファイアウォールの確認では、プライベート ネットワークを許可してください。
-echo 使用中はこのウィンドウを閉じないでください。
+echo 起動後はQRコード画面とタスクトレイアイコンから操作できます。
 echo.
 
-SmartMouseReceiver.exe
+start "" SmartMouseReceiver.exe
 
 echo.
-echo SmartMouse Receiverは終了しました。
-echo エラーで終了した場合は、この画面のスクリーンショットを保存してください。
-pause
+echo SmartMouse Receiverを起動しました。
+timeout /t 3 >nul

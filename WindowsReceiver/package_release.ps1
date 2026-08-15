@@ -10,7 +10,7 @@ $Stage = Join-Path $Root "release\$PackageName"
 $Zip = Join-Path $Root "release\$PackageName.zip"
 
 if (-not (Test-Path $Exe)) {
-    throw "dist\SmartMouseReceiver.exe がありません。先に build_exe.bat を実行してください。"
+    throw "dist\SmartMouseReceiver.exe was not found. Run build_exe.bat first."
 }
 
 if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
