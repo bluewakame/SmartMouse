@@ -4,7 +4,7 @@ import UIKit
 struct ContentView: View {
     @StateObject private var client = MouseWebSocketClient()
     @StateObject private var discovery = ReceiverDiscovery()
-    @AppStorage("receiverAddress") private var receiverAddress = "192.168.1.2:8000"
+    @AppStorage("receiverAddress") private var receiverAddress = ""
     @AppStorage("pointerSensitivity") private var sensitivity = 1.5
     @AppStorage("pointerAcceleration") private var pointerAcceleration = true
     @AppStorage("scrollSensitivity") private var scrollSensitivity = 1.0
@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var showingTutorial = false
     @State private var showingQRScanner = false
     @State private var didPresentStartupFlow = false
+    @State private var autoConnectedAddress = ""
     @FocusState private var inputFocused: Bool
 
     private let accent = Color(red: 0.20, green: 0.86, blue: 0.62)
@@ -44,6 +45,11 @@ struct ContentView: View {
             TutorialView(onConnect: connectFromQRCode) {
                 tutorialVersion = 4
                 showingTutorial = false
+                // チュートリアルをQR読み取りなしで終えた場合も、そのまま接続へ進めるようにする。
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    guard client.state != .connected, client.state != .connecting else { return }
+                    presentQRScanner()
+                }
             }
         }
         .fullScreenCover(isPresented: $showingQRScanner) {
@@ -61,12 +67,18 @@ struct ContentView: View {
             discovery.start()
             guard !didPresentStartupFlow else { return }
             didPresentStartupFlow = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                if tutorialVersion < 4 {
-                    showingTutorial = true
-                } else if client.state != .connected {
-                    showingQRScanner = true
-                }
+            guard tutorialVersion >= 4 else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showingTutorial = true }
+                return
+            }
+            // 前回のQRコードがまだ有効ならそのまま復帰し、自動検出も少し待つ。
+            // それでも繋がらないときだけカメラを開く。
+            if MouseWebSocketClient.canConnect(to: receiverAddress) {
+                client.connect(to: receiverAddress)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                guard client.state != .connected, client.state != .connecting else { return }
+                presentQRScanner()
             }
         }
         .onDisappear {
@@ -76,10 +88,18 @@ struct ContentView: View {
             client.disconnect()
         }
         .onReceive(discovery.$receivers) { receivers in
-            guard client.state == .disconnected, let receiver = receivers.first else { return }
+            // 接続失敗中でも、新しい合言葉のReceiverが見つかったら自動で繋ぎ直す。
+            guard client.state != .connected, client.state != .connecting,
+                  let receiver = receivers.first,
+                  receiver.address != autoConnectedAddress else { return }
+            autoConnectedAddress = receiver.address
             showingQRScanner = false
             receiverAddress = receiver.address
             client.connect(to: receiver.address)
+        }
+        .onChange(of: client.needsPairing) { _, needsPairing in
+            guard needsPairing, !showingTutorial, !showingQRScanner else { return }
+            presentQRScanner()
         }
         .onChange(of: client.state) { _, state in
             if state != .connected, dragLocked {
@@ -273,8 +293,8 @@ struct ContentView: View {
 
             HStack(spacing: 7) {
                 Button("再接続") { client.connect(to: receiverAddress) }
-                    .disabled(client.state == .connecting)
-                Button("QRを読む") { showingQRScanner = true }
+                    .disabled(client.state == .connecting || !canReconnect)
+                Button("QRを読む") { presentQRScanner() }
             }
             .font(.caption2.weight(.bold))
             .buttonStyle(.bordered)
@@ -291,6 +311,11 @@ struct ContentView: View {
     private var connectionTitle: String {
         if case .failed(let message) = client.state { return message }
         return client.state.label
+    }
+
+    /// 合言葉付きのアドレスを持っているときだけ再接続を試せる。
+    private var canReconnect: Bool {
+        MouseWebSocketClient.canConnect(to: receiverAddress)
     }
 
     private var actionButtons: some View {
@@ -491,9 +516,23 @@ struct ContentView: View {
 
     private func connectFromQRCode(_ value: String) {
         let address = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard address.hasPrefix("ws://") || address.hasPrefix("wss://") else { return }
+        // SmartMouse以外のQRコードを読んでしまっても、接続を壊さずに読み取り直せるようにする。
+        guard MouseWebSocketClient.canConnect(to: address) else { return }
+        autoConnectedAddress = address
         receiverAddress = address
         client.connect(to: address)
+    }
+
+    private func presentQRScanner() {
+        guard !showingQRScanner else { return }
+        guard showingSettings else {
+            showingQRScanner = true
+            return
+        }
+        showingSettings = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            showingQRScanner = true
+        }
     }
 
     private func startEdgeScroll(direction: Double) {
@@ -529,31 +568,35 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section("Windows受信機") {
-                    TextField("192.168.1.2:8000", text: $receiverAddress)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button(client.state == .connected ? "切断" : "接続") {
-                        client.state == .connected ? client.disconnect() : client.connect(to: receiverAddress)
-                    }
+                    Button("QRコードを読み取って接続") { presentQRScanner() }
+                        .font(.body.weight(.semibold))
                     Text(client.state.label).foregroundStyle(.secondary)
                     if !client.recoveryHint.isEmpty {
                         Text(client.recoveryHint)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                    if client.state != .connected {
+                    if client.state == .connected {
+                        Button("切断") { client.disconnect() }
+                    } else if canReconnect {
                         Button("今すぐ再接続") { client.connect(to: receiverAddress) }
                     }
-                    Button("QRコードを読み取って接続") {
-                        showingSettings = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                            showingQRScanner = true
-                        }
-                    }
+                }
+                Section {
+                    TextField("ws://192.168.1.2:8000/ws?token=…", text: $receiverAddress)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("入力したアドレスで接続") { client.connect(to: receiverAddress) }
+                        .disabled(!canReconnect)
+                } header: {
+                    Text("手入力で接続")
+                } footer: {
+                    Text("Receiver画面に表示されている ws:// で始まるアドレスを、末尾のtokenまで含めて入力してください。QRコードが読めないときの予備手段です。")
                 }
                 if !discovery.receivers.isEmpty {
                     Section("自動検出") {
                         ForEach(discovery.receivers) { receiver in
                             Button(receiver.name) {
+                                autoConnectedAddress = receiver.address
                                 receiverAddress = receiver.address
                                 client.connect(to: receiver.address)
                                 showingSettings = false

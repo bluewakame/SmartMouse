@@ -8,6 +8,7 @@ from receiver_protocol import (
     PROTOCOL_VERSION,
     TOKEN_HEX_LENGTH,
     build_connection_url,
+    build_service_instance,
     create_pairing_token,
     is_valid_pairing_token,
 )
@@ -34,6 +35,25 @@ class ReceiverProtocolTests(unittest.TestCase):
             f"ws://192.168.1.10:8000/ws?token={token}",
         )
         self.assertEqual(PROTOCOL_VERSION, "2")
+
+    def test_service_instance_matches_iphone_parser(self) -> None:
+        # ReceiverDiscovery.swiftは"SmartMouse-"を外し、"-"区切りの5要素以上、
+        # 末尾がTOKEN_HEX_LENGTH桁であることを条件に接続先を組み立てる。
+        token = "d" * TOKEN_HEX_LENGTH
+        name = build_service_instance("192.168.1.10", token)
+
+        self.assertTrue(name.startswith("SmartMouse-"))
+        pieces = name[len("SmartMouse-"):].split("-")
+        self.assertGreaterEqual(len(pieces), 5)
+        self.assertEqual(pieces[-1], token)
+        self.assertEqual(len(pieces[-1]), TOKEN_HEX_LENGTH)
+        self.assertEqual(".".join(pieces[:-1]), "192.168.1.10")
+        # Bonjourのサービス名は63バイトまで。
+        self.assertLessEqual(len(name.encode("utf-8")), 63)
+
+    def test_service_instance_rejects_missing_token(self) -> None:
+        with self.assertRaises(ValueError):
+            build_service_instance("192.168.1.10", "")
 
 
 if __name__ == "__main__":

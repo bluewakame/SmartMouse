@@ -21,7 +21,7 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, get_lan_ip
 import main as receiver
-from receiver_protocol import build_connection_url
+from receiver_protocol import build_connection_url, build_service_instance
 
 
 APP_NAME = "SmartMouse Receiver"
@@ -77,7 +77,7 @@ class ReceiverServer:
         service_type = "_smartmouse._tcp.local."
         self.service_info = ServiceInfo(
             service_type,
-            f"SmartMouse-{encoded_ip}-{PAIRING_TOKEN}.{service_type}",
+            f"{build_service_instance(ip_address, PAIRING_TOKEN)}.{service_type}",
             addresses=[socket.inet_aton(ip_address)],
             port=PORT,
             properties={
