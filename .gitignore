@@ -11,6 +11,7 @@ xcuserdata/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-build/
 venv/
 dist/
 

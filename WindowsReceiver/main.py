@@ -1,6 +1,7 @@
 import ctypes
 import json
 import socket
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 
-APP_DIR = Path(__file__).resolve().parent
+# PyInstaller extracts bundled data into ``sys._MEIPASS`` for a one-file build.
+# In a normal Python launch the assets continue to live next to this module.
+APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 STATIC_DIR = APP_DIR / "static"
 HOST = "0.0.0.0"
 PORT = 8000
