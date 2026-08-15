@@ -22,6 +22,15 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 コンソールに表示されるQRコードをiPhoneアプリで読み取るか、表示URLをSafariで開きます。
 終了するときはコンソールで `Ctrl+C` を押すか、ウィンドウを閉じます。
 
+配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.1.0
+```
+
+`release\SmartMouseReceiver-v0.1.0.zip` に、QR接続案内、バージョン、
+警告の出ないSHA-256チェックサムを含む配布物が生成されます。
+
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
 > 警告が表示される場合があります。一般公開する場合はコード署名を推奨します。
 
