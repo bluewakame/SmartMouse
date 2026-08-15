@@ -1,6 +1,8 @@
 """SmartMouse Receiverをタスクトレイ常駐アプリとして起動します。"""
 
 import socket
+import os
+import sys
 import threading
 import tkinter as tk
 import webbrowser
@@ -14,6 +16,12 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 from main import HOST, PORT, app, get_lan_ip
 
 
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
+
 class SmartMouseTrayApp:
     def __init__(self) -> None:
         self.ip_address = get_lan_ip()
@@ -22,7 +30,14 @@ class SmartMouseTrayApp:
         self.service_info = self.create_service_info()
         self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
         self.server = uvicorn.Server(
-            uvicorn.Config(app, host=HOST, port=PORT, log_level="warning")
+            uvicorn.Config(
+                app,
+                host=HOST,
+                port=PORT,
+                log_level="warning",
+                log_config=None,
+                access_log=False,
+            )
         )
         self.server_thread = threading.Thread(target=self.run_server, daemon=True)
         self.service_registered = False
