@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var client = MouseWebSocketClient()
@@ -14,6 +15,7 @@ struct ContentView: View {
     @State private var edgeScrollDirection = 0.0
     @State private var showingTutorial = false
     @State private var showingQRScanner = false
+    @State private var didPresentStartupFlow = false
     @FocusState private var inputFocused: Bool
 
     private let accent = Color(red: 0.20, green: 0.86, blue: 0.62)
@@ -38,16 +40,18 @@ struct ContentView: View {
         .ignoresSafeArea(.container, edges: [.top, .bottom])
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingSettings) { settingsSheet }
-        .sheet(isPresented: $showingTutorial) {
+        .fullScreenCover(isPresented: $showingTutorial) {
             TutorialView(onConnect: connectFromQRCode) {
-                tutorialVersion = 2
+                tutorialVersion = 4
                 showingTutorial = false
             }
         }
         .fullScreenCover(isPresented: $showingQRScanner) {
             QRScannerView { result in
                 showingQRScanner = false
-                connectFromQRCode(result)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    connectFromQRCode(result)
+                }
             } onCancel: {
                 showingQRScanner = false
             }
@@ -55,7 +59,15 @@ struct ContentView: View {
         }
         .onAppear {
             discovery.start()
-            if tutorialVersion < 2 { showingTutorial = true }
+            guard !didPresentStartupFlow else { return }
+            didPresentStartupFlow = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if tutorialVersion < 4 {
+                    showingTutorial = true
+                } else if client.state != .connected {
+                    showingQRScanner = true
+                }
+            }
         }
         .onDisappear {
             discovery.stop()
@@ -65,8 +77,18 @@ struct ContentView: View {
         }
         .onReceive(discovery.$receivers) { receivers in
             guard client.state == .disconnected, let receiver = receivers.first else { return }
+            showingQRScanner = false
             receiverAddress = receiver.address
             client.connect(to: receiver.address)
+        }
+        .onChange(of: client.state) { _, state in
+            if state != .connected, dragLocked {
+                dragLocked = false
+            }
+            if state == .connected {
+                UIAccessibility.post(notification: .announcement, argument: "Windows PCへ接続しました")
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
         }
     }
 
@@ -111,6 +133,11 @@ struct ContentView: View {
             VStack {
                 header
                     .padding(.top, topInset)
+                if client.state != .connected {
+                    connectionBanner
+                        .padding(.trailing, 40)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 10) {
                         Image(systemName: dragLocked ? "hand.point.up.left.fill" : "hand.draw.fill")
@@ -134,21 +161,20 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 22)
-                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.horizontal, 14)
                 .padding(.trailing, 58)
                 .allowsHitTesting(false)
                 Spacer()
                 actionButtons
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 8)
 
             RoundedRectangle(cornerRadius: 20)
                 .strokeBorder(Color.white.opacity(dragLocked ? 0.22 : 0.09), lineWidth: 1.5)
-                .padding(.horizontal, 10)
-                .padding(.top, 82)
-                .padding(.bottom, 98)
+                .padding(.horizontal, 8)
+                .padding(.top, 76)
+                .padding(.bottom, 76)
                 .allowsHitTesting(false)
 
             HStack { Spacer(); scrollRail }
@@ -186,18 +212,65 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
                 .background(Color.white.opacity(0.06), in: Capsule())
             }
             .fixedSize()
+            .accessibilityLabel("接続設定")
+            .accessibilityValue(client.state.label)
+            .accessibilityHint("接続先の設定とチュートリアルを開きます")
         }
         .padding(.top, 6)
         .padding(.trailing, 40)
     }
 
+    private var connectionBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                if client.state == .connecting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                Text(connectionTitle)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(2)
+                Spacer(minLength: 4)
+            }
+
+            if !client.recoveryHint.isEmpty {
+                Text(client.recoveryHint)
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.65))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 7) {
+                Button("再接続") { client.connect(to: receiverAddress) }
+                    .disabled(client.state == .connecting)
+                Button("QRを読む") { showingQRScanner = true }
+            }
+            .font(.caption2.weight(.bold))
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.44), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var connectionTitle: String {
+        if case .failed(let message) = client.state { return message }
+        return client.state.label
+    }
+
     private var actionButtons: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             controlButton("コピー", systemImage: "doc.on.doc") {
                 if dragLocked {
                     dragLocked = false
@@ -206,33 +279,39 @@ struct ContentView: View {
                 } else { client.sendShortcut("copy") }
             }
             controlButton("貼り付け", systemImage: "doc.on.clipboard") { client.sendShortcut("paste") }
-            controlButton(dragLocked ? "離す" : "つかむ",
-                          systemImage: dragLocked ? "hand.raised.slash.fill" : "hand.raised.fill",
-                          active: dragLocked) {
+            ImmediateControlButton(
+                title: dragLocked ? "離す" : "つかむ",
+                systemImage: dragLocked ? "hand.raised.slash.fill" : "hand.raised.fill",
+                active: dragLocked,
+                accent: accent,
+                control: control
+            ) {
                 dragLocked.toggle()
                 dragLocked ? client.sendMouseDown() : client.sendMouseUp()
             }
         }
-        .frame(height: 52)
+        .frame(height: 44)
         .padding(.trailing, 40)
+        .accessibilityElement(children: .contain)
     }
 
     private func controlButton(_ title: String, systemImage: String, active: Bool = false,
                                action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 7) {
-                Image(systemName: systemImage).font(.system(size: 15, weight: .semibold))
+            HStack(spacing: 5) {
+                Image(systemName: systemImage).font(.system(size: 13, weight: .semibold))
                 Text(title)
-                    .font(.subheadline.weight(.bold))
+                    .font(.caption.weight(.bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
         }
+            .accessibilityLabel(title)
             .foregroundStyle(active ? Color.black : Color.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(active ? accent : control)
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(active ? accent : Color.white.opacity(0.12)))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(active ? accent : Color.white.opacity(0.12)))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var scrollRail: some View {
@@ -272,40 +351,48 @@ struct ContentView: View {
                 })
         }
         .frame(width: 42)
+        .accessibilityElement()
+        .accessibilityLabel("スクロール")
+        .accessibilityHint("上下にドラッグしてWindows画面をスクロールします")
+        .accessibilityAdjustableAction { direction in
+            client.sendScroll(amount: direction == .increment ? 12 : -12)
+        }
     }
 
     private var keyboardPanel: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 6) {
             TextField(
                 "",
                 text: $inputText,
                 prompt: Text("iPhoneキーボードで入力").foregroundStyle(Color(white: 0.36)),
                 axis: .vertical
             )
+                .accessibilityLabel("Windowsへ送る文字")
+                .accessibilityHint("iPhoneキーボードで入力します")
                 .lineLimit(1).focused($inputFocused).textFieldStyle(.plain)
-                .font(.body.weight(.medium))
-                .foregroundStyle(Color.black).tint(.black).padding(.horizontal, 14)
-                .frame(height: 52).background(Color(white: 0.97)).clipShape(RoundedRectangle(cornerRadius: 12))
-            HStack(spacing: 9) {
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.black).tint(.black).padding(.horizontal, 12)
+                .frame(height: 44).background(Color(white: 0.97)).clipShape(RoundedRectangle(cornerRadius: 10))
+            HStack(spacing: 7) {
                 keyboardButton("送信", systemImage: "paperplane.fill", primary: true) {
                     sendInput(pressEnter: false)
                 }
-                keyboardButton("検索", systemImage: "magnifyingglass") {
+                keyboardButton("エンター", systemImage: "return") {
                     sendInput(pressEnter: true)
                 }
                 keyboardButton("⌫", compact: true) {
                     if inputText.isEmpty { client.sendBackspace() } else { inputText.removeLast() }
                 }
             }
-            .frame(height: 50)
+            .frame(height: 42)
         }
-        .padding(.horizontal, 8).padding(.vertical, 8)
+        .padding(.horizontal, 6).padding(.vertical, 4)
         .background(Color(red: 0.055, green: 0.06, blue: 0.065))
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Button("送信") { sendInput(pressEnter: false) }
                     .disabled(inputText.isEmpty)
-                Button("検索") { sendInput(pressEnter: true) }
+                Button("エンター") { sendInput(pressEnter: true) }
                     .disabled(inputText.isEmpty)
                 Spacer()
                 Button("完了") { dismissKeyboard() }
@@ -318,16 +405,17 @@ struct ContentView: View {
                                 primary: Bool = false, compact: Bool = false,
                                 action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 5) {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
             }
-            .font(.headline.bold())
+            .font(.subheadline.bold())
         }
+            .accessibilityLabel(title)
             .foregroundStyle(primary ? Color.black : Color.white)
-            .frame(maxWidth: compact ? 70 : .infinity, maxHeight: .infinity)
+            .frame(maxWidth: compact ? 58 : .infinity, maxHeight: .infinity)
             .background(primary ? accent : control)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func sendInput(pressEnter: Bool) {
@@ -387,6 +475,14 @@ struct ContentView: View {
                         client.state == .connected ? client.disconnect() : client.connect(to: receiverAddress)
                     }
                     Text(client.state.label).foregroundStyle(.secondary)
+                    if !client.recoveryHint.isEmpty {
+                        Text(client.recoveryHint)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if client.state != .connected {
+                        Button("今すぐ再接続") { client.connect(to: receiverAddress) }
+                    }
                     Button("QRコードを読み取って接続") {
                         showingSettings = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -417,10 +513,96 @@ struct ContentView: View {
                             showingTutorial = true
                         }
                     }
+                    NavigationLink("接続できないとき") {
+                        ConnectionHelpView()
+                    }
                 }
             }
             .navigationTitle("SmartMouse設定")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { showingSettings = false } } }
         }
+    }
+}
+
+private struct ConnectionHelpView: View {
+    var body: some View {
+        List {
+            helpRow(
+                "1", "受信機を確認",
+                "WindowsでSmartMouseReceiver.exeを開き、QRコードが表示されたままにします。"
+            )
+            helpRow(
+                "2", "同じWi‑Fiを確認",
+                "iPhoneとPCを同じWi‑Fiへ接続します。ゲスト・ホテル・公共Wi‑Fiでは通信できない場合があります。"
+            )
+            helpRow(
+                "3", "Windowsの許可を確認",
+                "ファイアウォールの確認画面では「プライベート ネットワーク」を許可します。"
+            )
+            helpRow(
+                "4", "VPNを一時的に切る",
+                "iPhoneまたはPCでVPNを使っている場合は、一度オフにして接続を試します。"
+            )
+            helpRow(
+                "5", "QRコードを読み直す",
+                "PCのIPアドレスが変わることがあるため、現在表示されているQRコードを読み取ります。"
+            )
+        }
+        .navigationTitle("接続できないとき")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func helpRow(_ number: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number)
+                .font(.headline.bold())
+                .foregroundStyle(.black)
+                .frame(width: 30, height: 30)
+                .background(Color(red: 0.20, green: 0.86, blue: 0.62), in: Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ImmediateControlButton: View {
+    let title: String
+    let systemImage: String
+    let active: Bool
+    let accent: Color
+    let control: Color
+    let action: () -> Void
+    @State private var fired = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage).font(.system(size: 13, weight: .semibold))
+            Text(title)
+                .font(.caption.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(active ? Color.black : Color.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(active ? accent : control)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(active ? accent : Color.white.opacity(0.12)))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !fired else { return }
+                    fired = true
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    action()
+                }
+                .onEnded { _ in fired = false }
+        )
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(title)
     }
 }

@@ -4,7 +4,7 @@ SwiftUI製の最小SmartMouseクライアントです。既存Windows Receiver�
 
 ## 実行
 
-1. Windowsで既存の `main.py` を起動します。
+1. Windowsで `SmartMouseReceiver.exe` を起動します。
 2. `SmartMouse.xcodeproj` をXcodeで開きます。
 3. Targetの Signing & Capabilities で自分のTeamを選択します。
 4. iPhoneをWindows PCと同じWi-Fiへ接続し、実機でアプリを実行します。
@@ -24,11 +24,12 @@ SwiftUI製の最小SmartMouseクライアントです。既存Windows Receiver�
 - 2本指で上下にドラッグ: スクロール
 - 長押ししてドラッグ: 左ボタンを押したまま移動
 - 右端のスクロールバー: スクロール
-- Grab / Drop: 左ボタンの押下状態を固定／解除
-- Copy / Paste: Windows側でコピー／貼り付け
-- Send: 入力文字をWindowsへ貼り付け
-- Search: 入力文字を貼り付けてEnter
+- つかむ／離す: 左ボタンの押下状態を固定／解除
+- コピー／貼り付け: Windows側でコピー／貼り付け
+- 送信: 入力文字をWindowsへ貼り付け
+- エンター: 入力文字を貼り付けてEnter
 - ⌫: 入力欄を削除。空の場合はWindowsへBackspaceを送信
 - 亀〜兎のスライダー: カーソル感度を0.5〜3.0倍に調整
 
-Receiverの自動検出を使う場合は、`WindowsReceiverAddOn`のファイルと手順を既存Receiverへ追加してください。
+ReceiverはQR接続、自動検出、タスクトレイ常駐に対応しています。画面を閉じても
+Windows右下のSmartMouseアイコンからQRコードを再表示できます。

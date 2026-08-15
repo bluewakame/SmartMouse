@@ -6,7 +6,7 @@ from PyInstaller.utils.hooks import collect_submodules
 hidden_imports = collect_submodules("uvicorn") + collect_submodules("pystray")
 
 a = Analysis(
-    ["bonjour_main.py"],
+    ["receiver_gui.py"],
     pathex=[],
     binaries=[],
     datas=[("static", "static")],
