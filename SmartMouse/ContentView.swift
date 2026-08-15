@@ -30,8 +30,6 @@ struct ContentView: View {
                     touchpadArea(topInset: geometry.safeAreaInsets.top)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .layoutPriority(1)
-                    keyboardPanel
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             }
@@ -138,6 +136,8 @@ struct ContentView: View {
                         .padding(.trailing, 40)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
+                keyboardPanel
+                    .padding(.trailing, 40)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 10) {
                         Image(systemName: dragLocked ? "hand.point.up.left.fill" : "hand.draw.fill")
@@ -387,7 +387,9 @@ struct ContentView: View {
             .frame(height: 42)
         }
         .padding(.horizontal, 6).padding(.vertical, 4)
-        .background(Color(red: 0.055, green: 0.06, blue: 0.065))
+        .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Button("送信") { sendInput(pressEnter: false) }
