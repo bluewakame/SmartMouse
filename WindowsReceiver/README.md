@@ -12,6 +12,9 @@ PC側でこのReceiverを起動し、同じWi-Fi/LAN上のiPhoneからSmartMouse
 ReceiverはWebSocket（`/ws`）とヘルスチェック（`/health`）のみを提供します。
 ブラウザ用の操作画面は持ちません。
 
+ビルド済みの配布版は [Releases](https://github.com/bluewakame/SmartMouse/releases) にあります。
+以下は、ソースからビルド・実行する場合の手順です。
+
 ## 配布用exeを作成する
 
 Windows 10 / 11上で `build_exe.bat` をダブルクリックすると、専用のビルド環境を作成して
