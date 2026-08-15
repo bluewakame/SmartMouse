@@ -9,7 +9,25 @@ PC側でPythonサーバーを起動し、同じWi-Fi/LAN上のiPhoneからブラ
 - Python 3.11以上
 - iPhone Safari
 
+## 配布用exeを作成する
+
+Windows 10 / 11上で `build_exe.bat` をダブルクリックすると、専用のビルド環境を作成して
+`dist\SmartMouseReceiver.exe` を生成します。Pythonが入っていないPCにも、このexe単体を配布できます。
+
+ビルドにはPython 3.11以上とインターネット接続が必要です。生成物はビルドしたWindowsと同じ
+CPUアーキテクチャ向けになるため、一般配布用には64 bit版Windows上でビルドしてください。
+
+配布先では `SmartMouseReceiver.exe` をダブルクリックして起動します。初回起動時に
+Windows Defender Firewallの確認が表示されたら「プライベート ネットワーク」を許可してください。
+コンソールに表示されるQRコードをiPhoneアプリで読み取るか、表示URLをSafariで開きます。
+終了するときはコンソールで `Ctrl+C` を押すか、ウィンドウを閉じます。
+
+> Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
+> 警告が表示される場合があります。一般公開する場合はコード署名を推奨します。
+
 ## インストール
+
+Pythonから直接起動する場合のみ、以下を実行します。配布されたexeの実行には不要です。
 
 ```bash
 pip install -r requirements.txt
