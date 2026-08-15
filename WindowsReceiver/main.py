@@ -49,6 +49,8 @@ async def health() -> dict[str, str]:
     return {
         "status": "ready",
         "version": APP_VERSION,
+        # 配布パッケージ名からは分からないので、実行中コードの値をそのまま公開する。
+        "protocol": PROTOCOL_VERSION,
         "connected": str(connected_clients > 0).lower(),
     }
 
