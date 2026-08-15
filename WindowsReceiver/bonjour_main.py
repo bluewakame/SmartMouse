@@ -5,6 +5,7 @@
 """
 
 import socket
+import sys
 
 import qrcode
 import uvicorn
@@ -37,13 +38,22 @@ def main() -> None:
         qr = qrcode.QRCode(border=1)
         qr.add_data(connection_url)
         qr.make(fit=True)
-        qr.print_ascii(invert=True)
+        print_qr(qr)
         print(connection_url)
         print()
         uvicorn.run(app, host=HOST, port=PORT, log_level="info")
     finally:
         zeroconf.unregister_service(info)
         zeroconf.close()
+
+
+def print_qr(qr: qrcode.QRCode) -> None:
+    if sys.stdout.isatty():
+        qr.print_tty()
+        return
+
+    for row in qr.get_matrix():
+        print("".join("  " if module else "##" for module in row))
 
 
 if __name__ == "__main__":

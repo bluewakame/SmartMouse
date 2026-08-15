@@ -1,2 +1,3 @@
 -r requirements.txt
+-r requirements-addon.txt
 pyinstaller>=6.15,<7.0
