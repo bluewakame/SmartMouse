@@ -2,6 +2,20 @@
 
 SwiftUI製の最小SmartMouseクライアントです。既存Windows ReceiverのWebSocketへ接続し、画面上のドラッグを相対カーソル移動として送信します。
 
+## Receiverの入手
+
+Windows側の受信機は [Releases](https://github.com/bluewakame/SmartMouse/releases) から入手します。
+ソースから動かす場合は [`WindowsReceiver/README.md`](WindowsReceiver/README.md) を参照してください。
+
+アプリはReceiverがプロトコル `2` を返すことを要求します。プロトコル `1` の配布版
+（`v0.1.0`）では、接続時に「Receiverの更新が必要です」と表示されて接続できません。
+配布パッケージのファイル名のバージョンはコード側の `APP_VERSION` とは独立しているため、
+名前だけでは判断できません。稼働中のReceiverの実際の値は次で確認できます。
+
+```
+http://<PCのIPアドレス>:8000/health
+```
+
 ## 実行
 
 1. Windowsで `SmartMouseReceiver.exe` を起動します。
