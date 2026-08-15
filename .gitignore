@@ -20,3 +20,5 @@ dist/
 
 # Windows build output
 *.spec.bak
+release/
+installer/
