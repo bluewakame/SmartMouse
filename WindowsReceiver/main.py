@@ -10,6 +10,8 @@ import pyautogui
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+
+import log_filters
 from receiver_protocol import (
     PROTOCOL_VERSION,
     build_connection_url,
@@ -36,6 +38,10 @@ connected_clients = 0
 
 
 app = FastAPI(title="SmartMouse Emergency Mouse Keyboard")
+
+# GUI版（receiver_gui.py）もこのモジュールを読み込むため、ここで入れておけば
+# どちらの起動経路でもアクセスログから合言葉が消える。
+log_filters.install()
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0
