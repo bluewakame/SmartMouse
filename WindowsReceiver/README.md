@@ -15,6 +15,21 @@ ReceiverはWebSocket（`/ws`）とヘルスチェック（`/health`）のみを�
 ビルド済みの配布版は [Releases](https://github.com/bluewakame/SmartMouse/releases) にあります。
 以下は、ソースからビルド・実行する場合の手順です。
 
+## Webアプリを同梱する
+
+`web/` には [SmartMouse-WEB](https://github.com/bluewakame/SmartMouse-WEB) のビルド結果が入っていて、
+PyInstallerがexeへそのまま同梱します（実行時は `_internal/web`）。
+Webアプリ側を更新したら、次の手順で差し替えてからexeをビルドします。
+
+```powershell
+cd ..\SmartMouse-WEB
+npm ci; npm run build
+robocopy dist ..\SmartMouse\WindowsReceiver\web /MIR
+```
+
+`web/index.html` が無い場合、exeはWebアプリ無しでビルドされ、`/` は404になります
+（`/ws` と `/health` は動くのでiPhoneアプリからは使えます）。
+
 ## 配布用exeを作成する
 
 Windows 10 / 11上で `build_exe.bat` をダブルクリックすると、専用のビルド環境を作成して
@@ -41,17 +56,17 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.4.1
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.0
 ```
 
-`release\SmartMouseReceiver-v0.4.1.zip` に、アプリ本体一式、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.5.0.zip` に、アプリ本体一式、QR接続案内、バージョン、
 同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
 
 コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
 `_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.4.1 -CertificateThumbprint <拇印>
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.0 -CertificateThumbprint <拇印>
 ```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -75,6 +90,11 @@ powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.4.1 -C
   SmartScreenの評価が下がります。バージョンは `main.py` の `APP_VERSION` から自動生成します。
 - **不要な同梱物を減らす。** pytestやpipなど開発用パッケージはspecの `excludes` で除外します。
 - **正式配布ではコード署名する。** EV／OV証明書での署名がSmartScreen警告への唯一の正攻法です。
+  個人でも使える選択肢としては[Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/)
+  （月額制。本人確認が必要）があり、GitHub Actionsから署名できます。
+  **署名しない限り、初回のSmartScreen警告は消せません。**
+- **GitHub Actionsで公開ビルドする。** 誰でも同じ手順を再現でき、
+  `actions/attest-build-provenance` の証明が付くため、配布物の出所を確認できます。
 
 やらないこと。
 
@@ -100,12 +120,26 @@ WindowsへInno Setup 6をインストールし、exeのビルド後に次を実�
 powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-`installer\SmartMouseReceiver-Setup-v0.4.1.exe` が生成されます。インストーラーは
+`installer\SmartMouseReceiver-Setup-v0.5.0.exe` が生成されます。インストーラーは
 ショートカット、自動起動、プライベートネットワーク用ファイアウォール規則、
 アンインストールに対応します。
 
 QRコードにはReceiver起動ごとに変わる一時認証情報が含まれます。未認証の端末から
 WebSocketへ接続しても、マウスやキーボードを操作できません。
+
+## 配布物を使う（いちばん簡単）
+
+[Releases](https://github.com/bluewakame/SmartMouse/releases) から
+`SmartMouseReceiver-vX.Y.Z.zip` をダウンロードし、展開して
+`SmartMouseReceiver.exe` を実行します。Python も Node.js も要りません。
+
+> 未署名のため、初回起動時にSmartScreenが「WindowsによってPCが保護されました」と
+> 出ることがあります。「詳細情報」→「実行」で起動できます。詳しくは
+> 「Defender／SmartScreenの誤検知を減らす方針」を参照してください。
+
+exeはGitHub Actions（`.github/workflows/receiver-release.yml`）がWindows上でビルドし、
+ビルド元を証明する[provenance](https://docs.github.com/actions/security-guides/using-artifact-attestations)
+を付けて公開します。手元で作る場合は「配布用exeを作成する」を参照してください。
 
 ## インストール
 
@@ -123,11 +157,30 @@ python receiver_gui.py
 
 起動すると、PCのLAN内IPv4アドレスを含んだQRコードが通常画面に表示されます。
 
-## iPhone接続
+## スマホから接続する
 
-1. Windows PCとiPhoneを同じWi-Fi/LANへ接続します。
-2. Receiver画面のQRコードを、SmartMouse iPhoneアプリで読み取ります。
-3. アプリ上部の表示が `接続済み` になったら操作できます。
+Receiverは8000番で次の3つをまとめて提供します。
+
+| 経路 | 用途 |
+| --- | --- |
+| `/` | スマホのブラウザ用アプリ（[SmartMouse-WEB](https://github.com/bluewakame/SmartMouse-WEB) のビルド結果を `web/` から配信） |
+| `/ws` | 操作用のWebSocket（合言葉が必要） |
+| `/health` | 稼働確認と遅延計測 |
+
+### ブラウザで使う（アプリのインストール不要）
+
+1. Windows PCとスマホを同じWi-Fi/LANへ接続します。
+2. Receiver画面のQRコードを、**スマホの標準カメラアプリ**で読み取ります。
+3. ブラウザが開き、そのまま `接続済み` になります。
+
+QRコードには `http://<PCのIP>:8000/?token=<合言葉>` が入っています。
+ページとWebSocketが同じオリジンなので、ブラウザの混在コンテンツ制限に引っかからず、
+配信用の別サーバーもポート開放も要りません。
+
+### iPhoneアプリで使う
+
+同じQRコードをSmartMouse iPhoneアプリで読み取っても接続できます。
+アプリは `http://…?token=…` を `ws://…/ws?token=…` に読み替えるため、QRコードは1つで足ります。
 
 同じLAN上であれば、アプリはBonjour（`_smartmouse._tcp`）でReceiverを自動検出して接続します。
 

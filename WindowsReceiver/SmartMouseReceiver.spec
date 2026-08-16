@@ -110,11 +110,17 @@ excluded_modules = [
     "tkinter.test",
 ]
 
+# スマホのブラウザ用アプリを同梱し、Receiver自身が8000番で配信できるようにする。
+# 実行時は main.py の WEB_DIR（sys._MEIPASS/web）から読む。
+web_datas = [("web", "web")] if (SPEC_DIR / "web" / "index.html").exists() else []
+if not web_datas:
+    print("WARNING: web/index.html が無いため、Webアプリを同梱せずにビルドします。")
+
 a = Analysis(
     ["receiver_gui.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=web_datas,
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},

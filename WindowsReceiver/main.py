@@ -9,9 +9,11 @@ from typing import Any
 import pyautogui
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from receiver_protocol import (
     PROTOCOL_VERSION,
     build_connection_url,
+    build_page_url,
     create_pairing_token,
     is_valid_pairing_token,
 )
@@ -21,12 +23,14 @@ from receiver_protocol import (
 # ship, that is the ``_internal`` folder next to the exe. In a normal Python
 # launch the assets continue to live next to this module.
 APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+# スマホのブラウザ用Webアプリ（SmartMouse-WEB のビルド結果）を置く場所。
+WEB_DIR = APP_DIR / "web"
 HOST = "0.0.0.0"
 PORT = 8000
 MAX_MOVE_DELTA = 100
 MAX_SCROLL_AMOUNT = 30
 MAX_TEXT_LENGTH = 5000
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.5.0"
 PAIRING_TOKEN = create_pairing_token()
 connected_clients = 0
 
@@ -80,6 +84,20 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         connected_clients = max(0, connected_clients - 1)
         # 通信断の瞬間にドラッグ中でも、Windows側の押下状態を残さない。
         release_all_inputs()
+
+
+def mount_web_app() -> bool:
+    """同梱したWebアプリ（スマホのブラウザ用）を同じポートで配信する。
+
+    ページとWebSocketが同じオリジンになるので、ブラウザの混在コンテンツ制限に
+    引っかからず、配信用の別サーバーもポート開放も要らなくなる。
+    ``/health``と``/ws``より後ろに載せるため、それらの経路は奪われない。
+    """
+    if not WEB_DIR.is_dir():
+        print(f"Web app not bundled (looked in {WEB_DIR}); serving API only")
+        return False
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+    return True
 
 
 def handle_mouse_message(data: dict[str, Any]) -> None:
@@ -605,6 +623,9 @@ def print_startup_banner() -> None:
     print("SmartMouse Emergency Mouse Keyboard")
     print(f"Receiver v{APP_VERSION} (protocol {PROTOCOL_VERSION}) started")
     print()
+    print("Open this address in your phone's browser:")
+    print(build_page_url(ip_address, PORT, PAIRING_TOKEN))
+    print()
     print("Pair the iPhone app with this address:")
     print(build_connection_url(ip_address, PORT, PAIRING_TOKEN))
     print()
@@ -612,6 +633,9 @@ def print_startup_banner() -> None:
     print("Press Ctrl+C to stop.")
     print("=" * 48)
     print()
+
+
+mount_web_app()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,96 @@
+name: Receiver release
+
+# Windows PC を用意しなくても、GitHub 上で exe を作って配布できるようにする。
+# - タグ v* を push すると Release を作り、ZIP を添付する
+# - 手動実行（workflow_dispatch）ではビルド成果物だけを Artifacts に残す
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # ビルドの出所を GitHub に証明させる（配布物が改ざんされていないことの根拠になる）。
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: WindowsReceiver
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: WindowsReceiver/requirements-build.txt
+
+      - name: 依存関係を入れる
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: 通信仕様のテスト
+        run: python -m unittest discover -s tests -v
+
+      - name: 同梱するWebアプリがあるか確認
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "web/index.html")) {
+            throw "web/index.html がありません。SmartMouse-WEB をビルドして web/ に入れてください。"
+          }
+
+      - name: バージョンを読む
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path main.py -Pattern '^APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: exeをビルドする（onedir・UPXなし）
+        run: python -m PyInstaller --noconfirm --clean SmartMouseReceiver.spec
+
+      - name: 起動に必要なものが揃っているか確認
+        shell: pwsh
+        run: |
+          foreach ($path in @(
+            "dist/SmartMouseReceiver/SmartMouseReceiver.exe",
+            "dist/SmartMouseReceiver/_internal",
+            "dist/SmartMouseReceiver/_internal/web/index.html"
+          )) {
+            if (-not (Test-Path $path)) { throw "$path が生成されていません。" }
+          }
+
+      - name: ZIPにまとめる
+        shell: pwsh
+        run: |
+          $name = "SmartMouseReceiver-v${{ steps.version.outputs.version }}"
+          Copy-Item README-release-ja.txt "dist/SmartMouseReceiver/はじめにお読みください.txt"
+          # フォルダごと固める。exe単体では起動しないため、_internal と同じ階層を保つ。
+          Compress-Archive -Path "dist/SmartMouseReceiver" -DestinationPath "dist/$name.zip" -Force
+          "ZIP_PATH=WindowsReceiver/dist/$name.zip" >> $env:GITHUB_ENV
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ZIP_PATH }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartMouseReceiver-v${{ steps.version.outputs.version }}
+          path: ${{ env.ZIP_PATH }}
+
+      - name: Release へ添付する
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "$env:GITHUB_WORKSPACE/$env:ZIP_PATH" `
+            --repo "${{ github.repository }}" `
+            --title "SmartMouse Receiver ${{ github.ref_name }}" `
+            --notes "ZIPを展開して SmartMouseReceiver.exe を実行してください。`n`n初回起動時、Windows の SmartScreen が「WindowsによってPCが保護されました」と表示することがあります（コード署名をしていないため）。「詳細情報」→「実行」で起動できます。"

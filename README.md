@@ -2,6 +2,15 @@
 
 SwiftUI製の最小SmartMouseクライアントです。既存Windows ReceiverのWebSocketへ接続し、画面上のドラッグを相対カーソル移動として送信します。
 
+クライアントは2種類あります。用途に応じて選べます。
+
+| クライアント | 入手方法 | 備考 |
+| --- | --- | --- |
+| **ブラウザ版** | Receiverが同梱・配信（インストール不要） | Receiver画面のQRを**標準のカメラ**で読むだけ。iPhone/Android両対応。ソースは [SmartMouse-WEB](https://github.com/bluewakame/SmartMouse-WEB) |
+| iOSアプリ版 | このリポジトリをXcodeでビルド | Bonjour自動検出や触覚フィードバックに対応 |
+
+QRコードは1つで両方に使えます（`http://<PCのIP>:8000/?token=…`。iOSアプリはこれを `ws://…/ws?token=…` に読み替えます）。
+
 ## Receiverの入手
 
 Windows側の受信機は [Releases](https://github.com/bluewakame/SmartMouse/releases) から入手します。

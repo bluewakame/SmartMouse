@@ -1,6 +1,7 @@
 import unittest
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -8,6 +9,7 @@ from receiver_protocol import (
     PROTOCOL_VERSION,
     TOKEN_HEX_LENGTH,
     build_connection_url,
+    build_page_url,
     build_service_instance,
     create_pairing_token,
     is_valid_pairing_token,
@@ -35,6 +37,35 @@ class ReceiverProtocolTests(unittest.TestCase):
             f"ws://192.168.1.10:8000/ws?token={token}",
         )
         self.assertEqual(PROTOCOL_VERSION, "2")
+
+    def test_page_url_opens_in_a_phone_browser(self) -> None:
+        # QRコードにはこのURLを載せる。標準のカメラアプリで開けるよう http:// で作る。
+        token = "e" * TOKEN_HEX_LENGTH
+        self.assertEqual(
+            build_page_url("192.168.1.10", 8000, token),
+            f"http://192.168.1.10:8000/?token={token}",
+        )
+
+    def test_page_url_stays_readable_by_the_iphone_app(self) -> None:
+        # MouseWebSocketClient.webSocketURL(from:) は http→ws に読み替え、
+        # パスが空か"/"なら"/ws"を補う。QRを1つにしても iPhone アプリが壊れないことを、
+        # その手順をなぞって確かめる。
+        token = "f" * TOKEN_HEX_LENGTH
+        page_url = build_page_url("192.168.1.10", 8000, token)
+
+        parsed = urlparse(page_url)
+        self.assertEqual(parsed.scheme, "http")
+        scheme = "ws" if parsed.scheme == "http" else "wss"
+        path = "/ws" if parsed.path in ("", "/") else parsed.path
+        port = parsed.port or 8000
+        rebuilt = f"{scheme}://{parsed.hostname}:{port}{path}?{parsed.query}"
+
+        self.assertEqual(rebuilt, build_connection_url("192.168.1.10", 8000, token))
+        self.assertEqual(parse_qs(parsed.query)["token"], [token])
+
+    def test_page_url_rejects_missing_token(self) -> None:
+        with self.assertRaises(ValueError):
+            build_page_url("192.168.1.10", 8000, "")
 
     def test_service_instance_matches_iphone_parser(self) -> None:
         # ReceiverDiscovery.swiftは"SmartMouse-"を外し、"-"区切りの5要素以上、

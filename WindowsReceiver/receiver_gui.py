@@ -23,7 +23,7 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 from app_icon import ACCENT, BACKGROUND, build_icon_image
 from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, get_lan_ip
 import main as receiver
-from receiver_protocol import build_connection_url, build_service_instance
+from receiver_protocol import build_connection_url, build_page_url, build_service_instance
 
 
 APP_NAME = "SmartMouse Receiver"
@@ -143,7 +143,11 @@ class ReceiverWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self.start_minimized = "--minimized" in sys.argv
 
-        self.connection_url = build_connection_url(get_lan_ip(), PORT, PAIRING_TOKEN)
+        lan_ip = get_lan_ip()
+        # QRコードにはブラウザ用のhttp URLを載せる。標準のカメラアプリで開けるうえ、
+        # iPhoneアプリもこの形式を ws:// に読み替えられるので、QRは1つで足りる。
+        self.page_url = build_page_url(lan_ip, PORT, PAIRING_TOKEN)
+        self.connection_url = build_connection_url(lan_ip, PORT, PAIRING_TOKEN)
         self.qr_photo: ImageTk.PhotoImage | None = None
         self.status_text = tk.StringVar(value="受信機を起動しています…")
         self.status_color = SECONDARY
@@ -185,25 +189,34 @@ class ReceiverWindow:
         qr_panel = tk.Frame(content, bg=PANEL, padx=18, pady=18)
         qr_panel.pack(fill="both", expand=True, pady=14)
         tk.Label(
-            qr_panel, text="iPhoneアプリで読み取ってください",
+            qr_panel, text="スマホのカメラで読み取ってください",
             bg=PANEL, fg=TEXT, font=("Yu Gothic UI", 13, "bold"),
+        ).pack(pady=(0, 2))
+        tk.Label(
+            qr_panel, text="ブラウザが開いてそのまま操作できます（アプリでも読めます）",
+            bg=PANEL, fg=SECONDARY, font=("Yu Gothic UI", 9),
         ).pack(pady=(0, 12))
 
         qr = qrcode.QRCode(border=2, box_size=9)
-        qr.add_data(self.connection_url)
+        qr.add_data(self.page_url)
         qr.make(fit=True)
         qr_image = qr.make_image(fill_color="#111416", back_color="#FFFFFF").convert("RGB")
         qr_image.thumbnail((290, 290), Image.Resampling.LANCZOS)
         self.qr_photo = ImageTk.PhotoImage(qr_image)
         tk.Label(qr_panel, image=self.qr_photo, bg=PANEL).pack()
         tk.Label(
-            qr_panel, text=self.connection_url, bg=PANEL, fg=SECONDARY,
+            qr_panel, text=self.page_url, bg=PANEL, fg=SECONDARY,
             font=("Consolas", 9),
         ).pack(pady=(10, 0))
+        # QRが読めない端末のために、手入力用のアドレスも出しておく。
+        tk.Label(
+            qr_panel, text=f"手入力用: {self.connection_url}", bg=PANEL, fg=SECONDARY,
+            font=("Consolas", 8),
+        ).pack(pady=(4, 0))
 
         tk.Label(
             content,
-            text="iPhoneとこのPCを同じWi‑Fiにつないでください。",
+            text="スマホとこのPCを同じWi‑Fiにつないでください。",
             bg=BACKGROUND, fg=SECONDARY, font=("Yu Gothic UI", 10),
         ).pack()
 
