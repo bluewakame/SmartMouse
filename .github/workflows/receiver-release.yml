@@ -75,7 +75,10 @@ jobs:
           Compress-Archive -Path "dist/SmartMouseReceiver" -DestinationPath "dist/$name.zip" -Force
           "ZIP_PATH=WindowsReceiver/dist/$name.zip" >> $env:GITHUB_ENV
 
+      # provenance はプランやリポジトリの公開設定によっては使えない。
+      # 付けられない場合でも配布物は出せるようにする。
       - uses: actions/attest-build-provenance@v2
+        continue-on-error: true
         with:
           subject-path: ${{ env.ZIP_PATH }}
 
