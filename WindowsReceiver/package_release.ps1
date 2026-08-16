@@ -1,18 +1,23 @@
 ﻿param(
     [string]$Version = "0.4.1",
     [string]$CertificateThumbprint = "",
-    [string]$DownloadUrl = ""
+    [string]$DownloadUrl = "",
+    [switch]$SignBundledBinaries
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Exe = Join-Path $Root "dist\SmartMouseReceiver.exe"
+$AppDir = Join-Path $Root "dist\SmartMouseReceiver"
+$Exe = Join-Path $AppDir "SmartMouseReceiver.exe"
 $PackageName = "SmartMouseReceiver-v$Version"
 $Stage = Join-Path $Root "release\$PackageName"
 $Zip = Join-Path $Root "release\$PackageName.zip"
 
 if (-not (Test-Path $Exe)) {
-    throw "dist\SmartMouseReceiver.exe was not found. Run build_exe.bat first."
+    throw "dist\SmartMouseReceiver\SmartMouseReceiver.exe was not found. Run build_exe.bat first."
+}
+if (-not (Test-Path (Join-Path $AppDir "_internal"))) {
+    throw "dist\SmartMouseReceiver\_internal がありません。onedirビルドになっていない可能性があります。"
 }
 
 # パッケージ名の -Version はコード側の APP_VERSION とは独立しているため、
@@ -37,8 +42,9 @@ if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 New-Item -ItemType Directory -Path $Stage | Out-Null
 
+# onedirビルドはexe単体では動かない。_internal ごとそのまま配る。
+Copy-Item (Join-Path $AppDir "*") $Stage -Recurse -Force
 $PackagedExe = Join-Path $Stage "SmartMouseReceiver.exe"
-Copy-Item $Exe $PackagedExe
 Copy-Item (Join-Path $Root "Start-SmartMouse.bat") (Join-Path $Stage "Start-SmartMouse.bat")
 Copy-Item (Join-Path $Root "README-release-ja.txt") (Join-Path $Stage "README-ja.txt")
 
@@ -47,11 +53,26 @@ if ($CertificateThumbprint) {
     if (-not $SignTool) {
         throw "signtool.exe が見つかりません。Windows SDKをインストールしてください。"
     }
-    & $SignTool.Source sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /sha1 $CertificateThumbprint $PackagedExe
-    if ($LASTEXITCODE -ne 0) { throw "コード署名に失敗しました。" }
+
+    $SignTargets = @($PackagedExe)
+    if ($SignBundledBinaries) {
+        # 同梱DLL/PYDまで署名すると信頼性は上がるが、タイムスタンプ取得のぶん時間がかかる。
+        $SignTargets += Get-ChildItem -Path (Join-Path $Stage "_internal") -Recurse -File -Include *.dll, *.pyd |
+            ForEach-Object { $_.FullName }
+    }
+
+    foreach ($Target in $SignTargets) {
+        & $SignTool.Source sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /sha1 $CertificateThumbprint $Target
+        if ($LASTEXITCODE -ne 0) { throw "コード署名に失敗しました: $Target" }
+    }
+
     & $SignTool.Source verify /pa $PackagedExe
     if ($LASTEXITCODE -ne 0) { throw "コード署名の検証に失敗しました。" }
+} else {
+    Write-Warning "コード署名なしでパッケージします。SmartScreenの警告が出る可能性があります。"
 }
+
+$Hash = (Get-FileHash $PackagedExe -Algorithm SHA256).Hash
 
 @"
 SmartMouse Receiver
@@ -59,12 +80,10 @@ Version: v$Version
 App version (code): $($Code.app)
 Protocol version (code): $($Code.protocol)
 Build date: $(Get-Date -Format yyyy-MM-dd)
-Package type: Portable Windows ZIP
+Package type: Portable Windows folder (PyInstaller onedir, no UPX)
 Entry point: SmartMouseReceiver.exe
+Note: SmartMouseReceiver.exe は _internal フォルダーと同じ場所に置いたままにしてください。
 "@ | Set-Content (Join-Path $Stage "VERSION.txt") -Encoding utf8
-
-$Hash = (Get-FileHash $PackagedExe -Algorithm SHA256).Hash
-"$Hash  SmartMouseReceiver.exe" | Set-Content (Join-Path $Stage "CHECKSUMS-SHA256.txt") -Encoding ascii -NoNewline
 
 @{
     name = "SmartMouseReceiver"
@@ -75,5 +94,15 @@ $Hash = (Get-FileHash $PackagedExe -Algorithm SHA256).Hash
     downloadUrl = $DownloadUrl
 } | ConvertTo-Json | Set-Content (Join-Path $Stage "release.json") -Encoding utf8
 
+# 同梱ファイルが1つでも差し替わっていないことを確認できるよう、全ファイルを対象にする。
+$ChecksumPath = Join-Path $Stage "CHECKSUMS-SHA256.txt"
+$Prefix = $Stage.TrimEnd('\') + '\'
+$Lines = Get-ChildItem -Path $Stage -Recurse -File | Sort-Object FullName | ForEach-Object {
+    $Relative = $_.FullName.Substring($Prefix.Length).Replace('\', '/')
+    "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)  $Relative"
+}
+($Lines -join "`r`n") | Set-Content $ChecksumPath -Encoding ascii
+
 Compress-Archive -Path $Stage -DestinationPath $Zip -CompressionLevel Optimal
 Write-Host "Package complete: $Zip"
+Write-Host "SmartMouseReceiver.exe SHA-256: $Hash"

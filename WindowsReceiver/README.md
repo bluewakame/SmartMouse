@@ -15,7 +15,17 @@ ReceiverはWebSocket（`/ws`）とヘルスチェック（`/health`）のみを�
 ## 配布用exeを作成する
 
 Windows 10 / 11上で `build_exe.bat` をダブルクリックすると、専用のビルド環境を作成して
-`dist\SmartMouseReceiver.exe` を生成します。Pythonが入っていないPCにも、このexe単体を配布できます。
+`dist\SmartMouseReceiver\` フォルダーを生成します。Pythonが入っていないPCへも、この
+**フォルダーごと** 配布できます。
+
+```text
+dist\SmartMouseReceiver\
+├─ SmartMouseReceiver.exe   ← これを起動する
+└─ _internal\               ← Python本体と依存ライブラリ
+```
+
+`SmartMouseReceiver.exe` だけを抜き出しても起動しません。必ず `_internal` と同じ場所に
+置いたまま配布・移動してください。
 
 ビルドにはPython 3.11以上とインターネット接続が必要です。生成物はビルドしたWindowsと同じ
 CPUアーキテクチャ向けになるため、一般配布用には64 bit版Windows上でビルドしてください。
@@ -31,11 +41,53 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.4.1
 ```
 
-`release\SmartMouseReceiver-v0.4.1.zip` に、QR接続案内、バージョン、
-警告の出ないSHA-256チェックサムを含む配布物が生成されます。
+`release\SmartMouseReceiver-v0.4.1.zip` に、アプリ本体一式、QR接続案内、バージョン、
+同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
+
+コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
+`_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.4.1 -CertificateThumbprint <拇印>
+```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
 > 警告が表示される場合があります。一般公開する場合はコード署名を推奨します。
+
+## Defender／SmartScreenの誤検知を減らす方針
+
+このReceiverはマウスとキーボードを外部からの入力で操作するため、振る舞いだけを見ると
+遠隔操作ツールと区別が付きにくく、もともと誤検知されやすい部類です。そのぶん、
+「怪しく見える作り」を避けることをビルド方針として固定しています。
+
+やっていること。
+
+- **onedirでビルドする。** `--onefile` は起動のたびに自分自身を `%TEMP%` へ展開して実行する
+  ため、ドロッパー型マルウェアと同じ挙動になります。`SmartMouseReceiver.spec` は
+  `COLLECT` を使ったonedir構成です。
+- **UPX圧縮をしない。** 実行ファイルの圧縮・パックはヒューリスティックの主要な減点要素です。
+  `EXE` と `COLLECT` の両方で `upx=False` を指定しています。
+- **strip・難読化・暗号化をしない。**
+- **バージョン情報リソースとアイコンを埋め込む。** 発行元も版数もないexeは、それだけで
+  SmartScreenの評価が下がります。バージョンは `main.py` の `APP_VERSION` から自動生成します。
+- **不要な同梱物を減らす。** pytestやpipなど開発用パッケージはspecの `excludes` で除外します。
+- **正式配布ではコード署名する。** EV／OV証明書での署名がSmartScreen警告への唯一の正攻法です。
+
+やらないこと。
+
+- Defenderの無効化、除外リストへの自動追加、セキュリティ設定の変更
+- 難読化やパッカーによる検知回避
+- 自己更新、自己展開、EXEから別EXEを取り出しての実行
+- 不要な子プロセスの生成（Uvicornは同一プロセス内で `uvicorn.Server` として起動します）
+
+それでも誤検知された場合は、検知回避を実装せず
+[Microsoft Security Intelligence](https://www.microsoft.com/wdsi/filesubmission) へ
+誤検知（false positive）として提出してください。判定はファイルのハッシュ単位なので、
+提出したビルドと配布するビルドは同一物である必要があります（`CHECKSUMS-SHA256.txt` を利用）。
+
+なお、Receiver画面の「Windowsへのサインイン時に自動で起動」は
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` へ登録します。未署名exeによる
+自動起動登録は監視対象の挙動なので、警告が出た場合はこのチェックを外してください。
 
 ## インストーラーを作成する
 

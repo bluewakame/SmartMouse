@@ -17,8 +17,9 @@ from receiver_protocol import (
 )
 
 
-# PyInstaller extracts bundled data into ``sys._MEIPASS`` for a one-file build.
-# In a normal Python launch the assets continue to live next to this module.
+# PyInstaller places bundled data under ``sys._MEIPASS``. In the onedir build we
+# ship, that is the ``_internal`` folder next to the exe. In a normal Python
+# launch the assets continue to live next to this module.
 APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 HOST = "0.0.0.0"
 PORT = 8000

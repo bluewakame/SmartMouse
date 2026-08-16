@@ -15,6 +15,12 @@ OutputBaseFilename=SmartMouseReceiver-Setup-v{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+; 生成されるSetup.exe自身にもバージョン情報リソースを持たせる。
+; 発行元と版数の分からない実行ファイルは、SmartScreenの評価で不利になる。
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoProductName={#MyAppName}
+VersionInfoDescription={#MyAppName} Setup
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -25,7 +31,8 @@ Name: "desktopicon"; Description: "デスクトップにショートカットを
 Name: "autostart"; Description: "Windowsへのサインイン時に自動で起動"; GroupDescription: "自動起動"
 
 [Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; onedirビルドなので、exeと_internalをまとめてインストールする。
+Source: "dist\SmartMouseReceiver\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
