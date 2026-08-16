@@ -16,17 +16,17 @@ from tkinter import filedialog, messagebox
 import pystray
 import qrcode
 import uvicorn
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
+# タスクトレイとexeのアイコンを同じ絵から作るため、描画はapp_iconへ寄せてある。
+from app_icon import ACCENT, BACKGROUND, build_icon_image
 from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, get_lan_ip
 import main as receiver
 from receiver_protocol import build_connection_url, build_service_instance
 
 
 APP_NAME = "SmartMouse Receiver"
-ACCENT = "#34DB9F"
-BACKGROUND = "#111416"
 PANEL = "#1C2023"
 TEXT = "#F6F7F8"
 SECONDARY = "#9DA3A8"
@@ -51,12 +51,7 @@ logger = logging.getLogger(APP_NAME)
 
 
 def tray_image() -> Image.Image:
-    image = Image.new("RGBA", (64, 64), BACKGROUND)
-    draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((5, 5, 59, 59), radius=15, fill=ACCENT)
-    draw.ellipse((19, 16, 45, 42), fill=BACKGROUND)
-    draw.rectangle((29, 37, 35, 52), fill=BACKGROUND)
-    return image
+    return build_icon_image(64)
 
 
 class ReceiverServer:

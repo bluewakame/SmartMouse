@@ -20,10 +20,14 @@ if errorlevel 1 exit /b 1
 call ".venv-build\Scripts\python.exe" -m pip install -r requirements-build.txt
 if errorlevel 1 exit /b 1
 
-echo Building SmartMouseReceiver.exe...
+rem 以前のonefileビルドのexeなど、古い成果物を残さない。
+if exist "dist" rmdir /s /q "dist"
+
+echo Building SmartMouseReceiver (onedir, no UPX)...
 call ".venv-build\Scripts\python.exe" -m PyInstaller --noconfirm --clean SmartMouseReceiver.spec
 if errorlevel 1 exit /b 1
 
 echo.
-echo Build complete: %CD%\dist\SmartMouseReceiver.exe
+echo Build complete: %CD%\dist\SmartMouseReceiver\SmartMouseReceiver.exe
+echo Distribute the whole dist\SmartMouseReceiver folder. The exe alone will not run.
 endlocal
