@@ -320,14 +320,6 @@ struct ContentView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 7) {
-            controlButton("コピー", systemImage: "doc.on.doc") {
-                if dragLocked {
-                    dragLocked = false
-                    client.sendMouseUp()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { client.sendShortcut("copy") }
-                } else { client.sendShortcut("copy") }
-            }
-            controlButton("貼り付け", systemImage: "doc.on.clipboard") { client.sendShortcut("paste") }
             ImmediateControlButton(
                 title: dragLocked ? "離す" : "つかむ",
                 systemImage: dragLocked ? "hand.raised.slash.fill" : "hand.raised.fill",
@@ -338,6 +330,14 @@ struct ContentView: View {
                 dragLocked.toggle()
                 dragLocked ? client.sendMouseDown() : client.sendMouseUp()
             }
+            controlButton("コピー", systemImage: "doc.on.doc") {
+                if dragLocked {
+                    dragLocked = false
+                    client.sendMouseUp()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { client.sendShortcut("copy") }
+                } else { client.sendShortcut("copy") }
+            }
+            controlButton("貼り付け", systemImage: "doc.on.clipboard") { client.sendShortcut("paste") }
             controlButton("全解除", systemImage: "exclamationmark.arrow.triangle.2.circlepath") {
                 dragLocked = false
                 client.sendReleaseAll()
