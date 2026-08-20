@@ -1,5 +1,5 @@
 ﻿#define MyAppName "SmartMouse Receiver"
-#define MyAppVersion "0.5.2"
+#define MyAppVersion "0.5.3"
 #define MyAppPublisher "SmartMouse"
 #define MyAppExeName "SmartMouseReceiver.exe"
 

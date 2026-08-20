@@ -1,4 +1,4 @@
-SmartMouse Receiver v0.5.2
+SmartMouse Receiver v0.5.3
 ==========================
 
 これは、スマホを Windows PC の緊急用マウス・キーボードとして使うための
@@ -91,7 +91,7 @@ SmartMouse iPhoneアプリは必須ではありません。
 - ウイルス対策ソフトが誤検知した場合は、ダウンロードしたZIPのハッシュが、
   配布元のReleaseページに表示されているSHA-256と一致するか確認してください。
   PowerShellで次のように調べられます。
-      Get-FileHash .\SmartMouseReceiver-v0.5.2.zip -Algorithm SHA256
+      Get-FileHash .\SmartMouseReceiver-v0.5.3.zip -Algorithm SHA256
   一致していれば改ざんはされていません。
 - 会社、学校、ホテル、公共Wi-Fiでは端末同士の通信が遮断され、
   スマホからPCへ接続できない場合があります。
