@@ -21,7 +21,7 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 # タスクトレイとexeのアイコンを同じ絵から作るため、描画はapp_iconへ寄せてある。
 from app_icon import ACCENT, BACKGROUND, build_icon_image
-from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, get_lan_ip
+from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, find_lan_ip, get_lan_ip
 import main as receiver
 from receiver_protocol import build_connection_url, build_page_url, build_service_instance
 
@@ -30,6 +30,7 @@ APP_NAME = "SmartMouse Receiver"
 PANEL = "#1C2023"
 TEXT = "#F6F7F8"
 SECONDARY = "#9DA3A8"
+WARNING = "#FFD699"
 
 
 def app_data_dir() -> Path:
@@ -143,11 +144,14 @@ class ReceiverWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self.start_minimized = "--minimized" in sys.argv
 
-        lan_ip = get_lan_ip()
+        # LANアドレスが見つからないまま 0.0.0.0 や 127.0.0.1 でQRを作ると、
+        # 読み取れてもスマホからは絶対に繋がらない。作らずに理由を出す。
+        lan_ip = find_lan_ip()
+        self.lan_ip = lan_ip
         # QRコードにはブラウザ用のhttp URLを載せる。標準のカメラアプリで開けるうえ、
         # iPhoneアプリもこの形式を ws:// に読み替えられるので、QRは1つで足りる。
-        self.page_url = build_page_url(lan_ip, PORT, PAIRING_TOKEN)
-        self.connection_url = build_connection_url(lan_ip, PORT, PAIRING_TOKEN)
+        self.page_url = build_page_url(lan_ip, PORT, PAIRING_TOKEN) if lan_ip else ""
+        self.connection_url = build_connection_url(lan_ip, PORT, PAIRING_TOKEN) if lan_ip else ""
         self.qr_photo: ImageTk.PhotoImage | None = None
         self.status_text = tk.StringVar(value="受信機を起動しています…")
         self.status_color = SECONDARY
@@ -197,22 +201,10 @@ class ReceiverWindow:
             bg=PANEL, fg=SECONDARY, font=("Yu Gothic UI", 9),
         ).pack(pady=(0, 12))
 
-        qr = qrcode.QRCode(border=2, box_size=9)
-        qr.add_data(self.page_url)
-        qr.make(fit=True)
-        qr_image = qr.make_image(fill_color="#111416", back_color="#FFFFFF").convert("RGB")
-        qr_image.thumbnail((290, 290), Image.Resampling.LANCZOS)
-        self.qr_photo = ImageTk.PhotoImage(qr_image)
-        tk.Label(qr_panel, image=self.qr_photo, bg=PANEL).pack()
-        tk.Label(
-            qr_panel, text=self.page_url, bg=PANEL, fg=SECONDARY,
-            font=("Consolas", 9),
-        ).pack(pady=(10, 0))
-        # QRが読めない端末のために、手入力用のアドレスも出しておく。
-        tk.Label(
-            qr_panel, text=f"手入力用: {self.connection_url}", bg=PANEL, fg=SECONDARY,
-            font=("Consolas", 8),
-        ).pack(pady=(4, 0))
+        if self.page_url:
+            self.build_qr_panel(qr_panel)
+        else:
+            self.build_no_network_panel(qr_panel)
 
         tk.Label(
             content,
@@ -258,6 +250,44 @@ class ReceiverWindow:
             bg=BACKGROUND, fg=SECONDARY, activebackground=BACKGROUND,
             activeforeground=TEXT, relief="flat", font=("Yu Gothic UI", 9),
         ).pack(side="left")
+
+    def build_qr_panel(self, qr_panel: tk.Frame) -> None:
+        qr = qrcode.QRCode(border=2, box_size=9)
+        qr.add_data(self.page_url)
+        qr.make(fit=True)
+        qr_image = qr.make_image(fill_color="#111416", back_color="#FFFFFF").convert("RGB")
+        qr_image.thumbnail((290, 290), Image.Resampling.LANCZOS)
+        self.qr_photo = ImageTk.PhotoImage(qr_image)
+        tk.Label(qr_panel, image=self.qr_photo, bg=PANEL).pack()
+        tk.Label(
+            qr_panel, text=self.page_url, bg=PANEL, fg=SECONDARY,
+            font=("Consolas", 9),
+        ).pack(pady=(10, 0))
+        # QRが読めない端末のために、手入力用のアドレスも出しておく。
+        tk.Label(
+            qr_panel, text=f"手入力用: {self.connection_url}", bg=PANEL, fg=SECONDARY,
+            font=("Consolas", 8),
+        ).pack(pady=(4, 0))
+
+    def build_no_network_panel(self, qr_panel: tk.Frame) -> None:
+        """LANアドレスが無いときの表示。
+
+        繋がらないQRを出すより、理由を出したほうが早く解決できる。
+        """
+        tk.Label(
+            qr_panel, text="このPCのLANアドレスが見つかりません",
+            bg=PANEL, fg=WARNING, font=("Yu Gothic UI", 12, "bold"),
+        ).pack(pady=(8, 6))
+        tk.Label(
+            qr_panel,
+            text=(
+                "Wi‑Fiまたは有線LANに繋がっていないため、\n"
+                "スマホから接続できるアドレスを作れません。\n\n"
+                "・Wi‑Fiに接続してから、この画面を開き直してください\n"
+                "・VPNを使っている場合は、一度切ってお試しください"
+            ),
+            bg=PANEL, fg=SECONDARY, font=("Yu Gothic UI", 10), justify="left",
+        ).pack(pady=(0, 8))
 
     def make_tray(self) -> pystray.Icon:
         menu = pystray.Menu(

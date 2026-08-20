@@ -12,6 +12,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 import log_filters
+from lan import LOOPBACK_IP, candidate_lan_ips, find_lan_ip, get_lan_ip, is_usable_lan_ip
 from receiver_protocol import (
     PROTOCOL_VERSION,
     build_connection_url,
@@ -607,19 +608,6 @@ def katakana_to_hiragana(char: str) -> str:
     if 0x30A1 <= code <= 0x30F6:
         return chr(code - 0x60)
     return char
-
-
-def get_lan_ip() -> str:
-    fallback = "127.0.0.1"
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.connect(("8.8.8.8", 80))
-            return sock.getsockname()[0]
-    except OSError:
-        try:
-            return socket.gethostbyname(socket.gethostname())
-        except OSError:
-            return fallback
 
 
 def print_startup_banner() -> None:
