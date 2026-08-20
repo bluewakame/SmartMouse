@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from main import HOST, PAIRING_TOKEN, PORT, app, get_lan_ip
-from receiver_protocol import build_service_instance
+from receiver_protocol import build_connection_url, build_page_url, build_service_instance
 
 
 if sys.stdout is None:
@@ -25,7 +25,10 @@ if sys.stderr is None:
 class SmartMouseTrayApp:
     def __init__(self) -> None:
         self.ip_address = get_lan_ip()
-        self.connection_url = f"ws://{self.ip_address}:{PORT}/ws?token={PAIRING_TOKEN}"
+        # 標準のカメラアプリで開けるのは http:// のほうだけ。ws:// のQRを出すと
+        # iOSのカメラが「使用可能なデータが見つかりません」と言って終わる。
+        self.page_url = build_page_url(self.ip_address, PORT, PAIRING_TOKEN)
+        self.connection_url = build_connection_url(self.ip_address, PORT, PAIRING_TOKEN)
         self.service_info = self.create_service_info()
         self.zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
         self.server = uvicorn.Server(
@@ -54,7 +57,7 @@ class SmartMouseTrayApp:
             pystray.Menu(
                 pystray.MenuItem("Show QR Code", self.show_window_from_tray),
                 pystray.MenuItem("Open Web UI", self.open_web_ui_from_tray),
-                pystray.MenuItem("Copy Connection URL", self.copy_url_from_tray),
+                pystray.MenuItem("Copy URL", self.copy_url_from_tray),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Exit", self.quit_from_tray),
             ),
@@ -95,7 +98,7 @@ class SmartMouseTrayApp:
 
         tk.Label(
             frame,
-            text=self.connection_url,
+            text=self.page_url,
             font=("Consolas", 10),
             bg="#f7f9fb",
             fg="#2d6cdf",
@@ -103,6 +106,15 @@ class SmartMouseTrayApp:
 
         self.qr_photo = self.create_qr_photo()
         tk.Label(frame, image=self.qr_photo, bg="#f7f9fb").pack(pady=(0, 12))
+
+        # iPhoneアプリへ手入力するときの接続先。QRには載せない。
+        tk.Label(
+            frame,
+            text=f"手入力用: {self.connection_url}",
+            font=("Consolas", 8),
+            bg="#f7f9fb",
+            fg="#6b7784",
+        ).pack(anchor="w", pady=(0, 12))
 
         tk.Label(
             frame,
@@ -119,7 +131,7 @@ class SmartMouseTrayApp:
 
     def create_qr_photo(self) -> ImageTk.PhotoImage:
         qr = qrcode.QRCode(border=2, box_size=8)
-        qr.add_data(self.connection_url)
+        qr.add_data(self.page_url)
         qr.make(fit=True)
         image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
         return ImageTk.PhotoImage(image)
@@ -164,8 +176,8 @@ class SmartMouseTrayApp:
 
     def copy_url(self) -> None:
         self.root.clipboard_clear()
-        self.root.clipboard_append(self.connection_url)
-        self.status_var.set("Connection URL copied.")
+        self.root.clipboard_append(self.page_url)
+        self.status_var.set("Page URL copied.")
 
     def show_window_from_tray(self, _icon: pystray.Icon, _item: pystray.MenuItem) -> None:
         self.root.after(0, self.show_window)

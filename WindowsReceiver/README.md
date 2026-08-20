@@ -9,8 +9,8 @@ PC側でこのReceiverを起動し、同じWi-Fi/LAN上のiPhoneからSmartMouse
 - Python 3.11以上（配布exeを使う場合は不要）
 - SmartMouse iPhoneアプリ（`SmartMouse.xcodeproj`）
 
-ReceiverはWebSocket（`/ws`）とヘルスチェック（`/health`）のみを提供します。
-ブラウザ用の操作画面は持ちません。
+Receiverは8000番で、スマホのブラウザ用アプリ（`/`）、操作用のWebSocket（`/ws`）、
+ヘルスチェック（`/health`）の3つを提供します。iPhoneアプリが無くてもブラウザだけで使えます。
 
 ビルド済みの配布版は [Releases](https://github.com/bluewakame/SmartMouse/releases) にあります。
 以下は、ソースからビルド・実行する場合の手順です。
@@ -250,6 +250,14 @@ QRコードにはトークンが含まれます。画面共有や配信の最中
 
 ## トラブルシューティング
 
+- **標準のカメラでQRを読むと「使用可能なデータが見つかりません」と出る場合**、
+  そのQRには `ws://` が入っています。iOSのカメラは `ws:` を開けるアプリを持たないため、
+  読み取り自体は成功しても、開く先が無いと言って終わります。次のどれかで解決します。
+  - v0.5.0以降の `SmartMouseReceiver.exe`（または `python receiver_gui.py`）で起動し直す。
+    こちらのQRは `http://<PCのIP>:8000/?token=…` なので、標準のカメラから直接開けます。
+  - iPhoneアプリを使う場合は、標準カメラではなくアプリ内の「QRコードを読み取って接続」から読む。
+    アプリは `ws://` を解釈できます。
+  - Receiver画面の「手入力用」に出ている `ws://…` を、アプリの設定へ直接入力する。
 - iPhoneから接続できない場合は、WindowsファイアウォールでPythonの通信が許可されているか確認してください。
 - PCとiPhoneが同じWi-Fiにいるか確認してください。
 - 到達性の確認は、iPhoneのSafariで `http://<PCのIP>:8000/health` を開くのが確実です。
