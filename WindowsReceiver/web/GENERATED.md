@@ -8,7 +8,9 @@
 ```bash
 cd ../SmartMouse-WEB
 npm ci && npm run build
-rm -rf ../SmartMouse/WindowsReceiver/web && mkdir -p ../SmartMouse/WindowsReceiver/web
+# assets/ は毎回ファイル名が変わるので、消してから入れ直す。
+# このGENERATED.mdはdistに無いため、web/ ごと消すと巻き添えで消える。
+rm -rf ../SmartMouse/WindowsReceiver/web/assets
 cp -r dist/. ../SmartMouse/WindowsReceiver/web/
 ```
 
@@ -17,7 +19,8 @@ Windows（PowerShell）の場合:
 ```powershell
 cd ..\SmartMouse-WEB
 npm ci; npm run build
-robocopy dist ..\SmartMouse\WindowsReceiver\web /MIR
+# /MIR はミラーなので、distに無いGENERATED.mdを消してしまう。除外して守る。
+robocopy dist ..\SmartMouse\WindowsReceiver\web /MIR /XF GENERATED.md
 ```
 
 このフォルダを直接編集しないでください。次のビルドで上書きされます。

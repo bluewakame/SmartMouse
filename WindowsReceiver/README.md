@@ -56,17 +56,17 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.0
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.1
 ```
 
-`release\SmartMouseReceiver-v0.5.0.zip` に、アプリ本体一式、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.5.1.zip` に、アプリ本体一式、QR接続案内、バージョン、
 同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
 
 コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
 `_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.0 -CertificateThumbprint <拇印>
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.1 -CertificateThumbprint <拇印>
 ```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -120,7 +120,7 @@ WindowsへInno Setup 6をインストールし、exeのビルド後に次を実�
 powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-`installer\SmartMouseReceiver-Setup-v0.5.0.exe` が生成されます。インストーラーは
+`installer\SmartMouseReceiver-Setup-v0.5.1.exe` が生成されます。インストーラーは
 ショートカット、自動起動、プライベートネットワーク用ファイアウォール規則、
 アンインストールに対応します。
 
