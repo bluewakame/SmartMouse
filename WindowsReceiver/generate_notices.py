@@ -19,6 +19,25 @@ from importlib.metadata import Distribution, distributions
 from pathlib import Path
 
 
+def _use_utf8_for_messages() -> None:
+    """標準出力・標準エラーをUTF-8にする。
+
+    Windows の Python は既定で cp1252 などを使うため、日本語のメッセージを
+    print した時点で UnicodeEncodeError になる。GPL検出時の説明も stderr へ
+    出すので、直さないと「何が問題なのか」が読めないまま落ちてしまう。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            # 端末以外へ繋がっている場合など。メッセージが読めなくても
+            # 生成そのものは続けたいので、ここでは黙って諦める。
+            pass
+
+
+_use_utf8_for_messages()
+
+
 # ビルドにしか使わず、配布物へは入らないもの。
 BUILD_ONLY = {
     "altgraph",
