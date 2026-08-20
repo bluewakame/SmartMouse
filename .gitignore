@@ -22,3 +22,6 @@ dist/
 *.spec.bak
 release/
 installer/
+
+# ビルド時に generate_notices.py が作る（コミットしない）
+WindowsReceiver/THIRD-PARTY-NOTICES.txt

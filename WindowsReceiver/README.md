@@ -58,17 +58,17 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.2
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.3
 ```
 
-`release\SmartMouseReceiver-v0.5.2.zip` に、アプリ本体一式、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.5.3.zip` に、アプリ本体一式、QR接続案内、バージョン、
 同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
 
 コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
 `_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.2 -CertificateThumbprint <拇印>
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.3 -CertificateThumbprint <拇印>
 ```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -122,7 +122,7 @@ WindowsへInno Setup 6をインストールし、exeのビルド後に次を実�
 powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-`installer\SmartMouseReceiver-Setup-v0.5.2.exe` が生成されます。インストーラーは
+`installer\SmartMouseReceiver-Setup-v0.5.3.exe` が生成されます。インストーラーは
 ショートカット、自動起動、プライベートネットワーク用ファイアウォール規則、
 アンインストールに対応します。
 
@@ -249,6 +249,25 @@ WPA2パーソナルのように接続パスワードを共有するWi-Fiでは�
 これが最も確実な遮断方法です。
 
 QRコードにはトークンが含まれます。画面共有や配信の最中に表示したままにしないでください。
+
+## ライセンス
+
+本体は MIT ライセンスです（リポジトリ直下の `LICENSE`）。
+
+同梱している依存ライブラリの一覧と全文は、ビルド時に `generate_notices.py` が
+`THIRD-PARTY-NOTICES.txt` を生成して配布物へ入れます。手書きの一覧は必ず古くなるため、
+リポジトリにはコミットせず、ビルド環境の導入済みパッケージから毎回作り直します。
+
+このスクリプトは同時に、**配布物全体へ影響が及ぶライセンス（GPL）が混入していないか
+検査してビルドを止めます。** PyAutoGUI は `mouseinfo` と `pymsgbox`（どちらも GPLv3）を
+依存に持ちますが、`alert()` / `confirm()` / `prompt()` / `mouseInfo()` を呼ばない限り不要で、
+PyAutoGUI 側も `try` / `except ImportError` で読み込んでいます。このアプリはどれも
+使っていないため spec の `excludes` で外しています。依存を足した人がライセンス条件の
+変化に気付けるよう、検査だけは残してあります。
+
+`pystray`（LGPLv3）と `zeroconf`（LGPL-2.1-or-later）は同梱しています。LGPL は
+利用者がライブラリを差し替えられることを求めますが、Defender 対策で選んだ onedir 構成では
+`_internal` 内に個別ファイルとして置かれるため、この要件を満たしやすい形になっています。
 
 ## トラブルシューティング
 

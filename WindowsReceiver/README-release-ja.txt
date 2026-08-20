@@ -1,4 +1,4 @@
-SmartMouse Receiver v0.5.2
+SmartMouse Receiver v0.5.3
 ==========================
 
 これは、スマホを Windows PC の緊急用マウス・キーボードとして使うための
@@ -91,7 +91,7 @@ SmartMouse iPhoneアプリは必須ではありません。
 - ウイルス対策ソフトが誤検知した場合は、ダウンロードしたZIPのハッシュが、
   配布元のReleaseページに表示されているSHA-256と一致するか確認してください。
   PowerShellで次のように調べられます。
-      Get-FileHash .\SmartMouseReceiver-v0.5.2.zip -Algorithm SHA256
+      Get-FileHash .\SmartMouseReceiver-v0.5.3.zip -Algorithm SHA256
   一致していれば改ざんはされていません。
 - 会社、学校、ホテル、公共Wi-Fiでは端末同士の通信が遮断され、
   スマホからPCへ接続できない場合があります。
@@ -99,6 +99,20 @@ SmartMouse iPhoneアプリは必須ではありません。
 - VPNを利用している場合は、一度OFFにして試してください。
 - 管理者権限のアプリを操作する場合は、Receiverも
   「管理者として実行」する必要がある場合があります。
+
+
+ライセンス
+----------
+
+このソフトは MIT ライセンスで配布しています。全文は同梱の LICENSE.txt を
+ご覧ください。無料でお使いいただけ、改変も再配布も自由です。
+
+このアプリには、オープンソースのライブラリと Python 本体が同梱されています。
+それぞれの著作権者とライセンスは THIRD-PARTY-NOTICES.txt に記載しています。
+
+うち pystray と zeroconf は LGPL です。これらは _internal フォルダー内に
+個別のファイルとして置かれているため、同じバージョンのライブラリへ
+差し替えて実行することができます。
 
 
 終了方法

@@ -1,5 +1,5 @@
 ﻿#define MyAppName "SmartMouse Receiver"
-#define MyAppVersion "0.5.2"
+#define MyAppVersion "0.5.3"
 #define MyAppPublisher "SmartMouse"
 #define MyAppExeName "SmartMouseReceiver.exe"
 
@@ -25,6 +25,8 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
+; インストーラーの同意画面にMITライセンスを出す。
+LicenseFile=..\LICENSE
 
 [Tasks]
 Name: "desktopicon"; Description: "デスクトップにショートカットを作成"; GroupDescription: "追加のショートカット"
