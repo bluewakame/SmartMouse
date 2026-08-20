@@ -33,7 +33,7 @@ PORT = 8000
 MAX_MOVE_DELTA = 100
 MAX_SCROLL_AMOUNT = 30
 MAX_TEXT_LENGTH = 5000
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.5.1"
 PAIRING_TOKEN = create_pairing_token()
 connected_clients = 0
 
