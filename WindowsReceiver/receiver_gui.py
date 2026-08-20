@@ -174,7 +174,7 @@ class ReceiverWindow:
             font=("Segoe UI", 24, "bold"),
         ).pack(anchor="w")
         tk.Label(
-            content, text="iPhoneをWindowsのマウス・キーボードに",
+            content, text="スマホをWindowsのマウス・キーボードに",
             bg=BACKGROUND, fg=SECONDARY, font=("Yu Gothic UI", 10),
         ).pack(anchor="w", pady=(2, 18))
 
