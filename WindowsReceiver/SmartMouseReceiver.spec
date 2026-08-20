@@ -93,8 +93,16 @@ hidden_imports = collect_submodules("uvicorn") + collect_submodules("pystray")
 
 # 配布物に入れる必要のない開発用・テスト用パッケージ。同梱物を減らすほど
 # スキャン対象のバイナリが減り、誤検知の当たり所も減る。
+#
+# mouseinfo と pymsgbox は PyAutoGUI の依存だが、どちらも GPLv3 で、
+# 同梱して配布すると配布物全体へGPLが及ぶ。PyAutoGUI 側は try/except ImportError で
+# 読み込んでおり、alert()/confirm()/prompt()/mouseInfo() を呼ばない限り不要。
+# このアプリはどれも使っていないので外す。戻すとライセンス条件が変わるため、
+# generate_notices.py が検査してビルドを止める。
 excluded_modules = [
     "_distutils_hack",
+    "mouseinfo",
+    "pymsgbox",
     "_pytest",
     "iniconfig",
     "lib2to3",

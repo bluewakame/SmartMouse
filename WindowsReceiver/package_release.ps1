@@ -47,6 +47,10 @@ Copy-Item (Join-Path $AppDir "*") $Stage -Recurse -Force
 $PackagedExe = Join-Path $Stage "SmartMouseReceiver.exe"
 Copy-Item (Join-Path $Root "Start-SmartMouse.bat") (Join-Path $Stage "Start-SmartMouse.bat")
 Copy-Item (Join-Path $Root "README-release-ja.txt") (Join-Path $Stage "README-ja.txt")
+Copy-Item (Join-Path $Root "..\LICENSE") (Join-Path $Stage "LICENSE.txt")
+# 同梱ライブラリの一覧はビルド環境から作り直す。GPLが混ざっていればここで止まる。
+& python (Join-Path $Root "generate_notices.py") (Join-Path $Stage "THIRD-PARTY-NOTICES.txt")
+if ($LASTEXITCODE -ne 0) { throw "THIRD-PARTY-NOTICES.txt を生成できませんでした。" }
 
 if ($CertificateThumbprint) {
     $SignTool = Get-Command signtool.exe -ErrorAction SilentlyContinue

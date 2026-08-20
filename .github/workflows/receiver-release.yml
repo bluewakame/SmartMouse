@@ -57,6 +57,11 @@ jobs:
           $version = (Select-String -Path main.py -Pattern '^APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      # GPLのパッケージが同梱対象に入っているとビルドを止める。
+      # 依存を足した人がライセンス条件の変化に気付けるようにする。
+      - name: 同梱ライセンスの一覧を作る
+        run: python generate_notices.py THIRD-PARTY-NOTICES.txt
+
       - name: exeをビルドする（onedir・UPXなし）
         run: python -m PyInstaller --noconfirm --clean SmartMouseReceiver.spec
 
@@ -66,7 +71,8 @@ jobs:
           foreach ($path in @(
             "dist/SmartMouseReceiver/SmartMouseReceiver.exe",
             "dist/SmartMouseReceiver/_internal",
-            "dist/SmartMouseReceiver/_internal/web/index.html"
+            "dist/SmartMouseReceiver/_internal/web/index.html",
+            "THIRD-PARTY-NOTICES.txt"
           )) {
             if (-not (Test-Path $path)) { throw "$path が生成されていません。" }
           }
@@ -76,6 +82,8 @@ jobs:
         run: |
           $name = "SmartMouseReceiver-v${{ steps.version.outputs.version }}"
           Copy-Item README-release-ja.txt "dist/SmartMouseReceiver/はじめにお読みください.txt"
+          Copy-Item ../LICENSE "dist/SmartMouseReceiver/LICENSE.txt"
+          Copy-Item THIRD-PARTY-NOTICES.txt "dist/SmartMouseReceiver/THIRD-PARTY-NOTICES.txt"
           # フォルダごと固める。exe単体では起動しないため、_internal と同じ階層を保つ。
           Compress-Archive -Path "dist/SmartMouseReceiver" -DestinationPath "dist/$name.zip" -Force
           "ZIP_PATH=WindowsReceiver/dist/$name.zip" >> $env:GITHUB_ENV
