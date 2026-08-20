@@ -1,13 +1,15 @@
 # SmartMouse Emergency Mouse Keyboard
 
-iPhoneをWindows PCの緊急用マウス・キーボードとして使うためのWindows側受信機です。
-PC側でこのReceiverを起動し、同じWi-Fi/LAN上のiPhoneからSmartMouseアプリで接続します。
+スマホをWindows PCの緊急用マウス・キーボードとして使うためのWindows側受信機です。
+PC側でこのReceiverを起動し、同じWi-Fi/LAN上のスマホのブラウザから接続します。
+スマホ側に入れるものはありません（SmartMouse iPhoneアプリでも接続できます）。
 
 ## 対象環境
 
 - Windows 10 / Windows 11
 - Python 3.11以上（配布exeを使う場合は不要）
-- SmartMouse iPhoneアプリ（`SmartMouse.xcodeproj`）
+- ブラウザの入ったスマホ（iPhone / Android のどちらでも可）
+- SmartMouse iPhoneアプリ（`SmartMouse.xcodeproj`）※任意
 
 Receiverは8000番で、スマホのブラウザ用アプリ（`/`）、操作用のWebSocket（`/ws`）、
 ヘルスチェック（`/health`）の3つを提供します。iPhoneアプリが無くてもブラウザだけで使えます。
@@ -50,23 +52,23 @@ CPUアーキテクチャ向けになるため、一般配布用には64 bit版Wi
 
 配布先では `SmartMouseReceiver.exe` をダブルクリックして起動します。初回起動時に
 Windows Defender Firewallの確認が表示されたら「プライベート ネットワーク」を許可してください。
-通常画面に表示されるQRコードをiPhoneアプリで読み取ります。画面を閉じると
+通常画面に表示されるQRコードをスマホの標準カメラで読み取ります。画面を閉じると
 タスクトレイへ収納され、黒いコンソール画面は表示されません。
 
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.1
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.2
 ```
 
-`release\SmartMouseReceiver-v0.5.1.zip` に、アプリ本体一式、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.5.2.zip` に、アプリ本体一式、QR接続案内、バージョン、
 同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
 
 コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
 `_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.1 -CertificateThumbprint <拇印>
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.2 -CertificateThumbprint <拇印>
 ```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -120,7 +122,7 @@ WindowsへInno Setup 6をインストールし、exeのビルド後に次を実�
 powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-`installer\SmartMouseReceiver-Setup-v0.5.1.exe` が生成されます。インストーラーは
+`installer\SmartMouseReceiver-Setup-v0.5.2.exe` が生成されます。インストーラーは
 ショートカット、自動起動、プライベートネットワーク用ファイアウォール規則、
 アンインストールに対応します。
 
@@ -199,12 +201,12 @@ QRコードには `http://<PCのIP>:8000/?token=<合言葉>` が入っていま�
 - `つかむ`: クリックを押したままにする。カーソル移動後にもう一度押して離す
 - `コピー`: 選択中の文字列をPC側でコピー
 - `貼り付け`: PC側クリップボードを貼り付け
-- `送信`: iPhoneで入力・変換した文字をPCへ貼り付け
+- `送信`: スマホで入力・変換した文字をPCへ貼り付け
 - `エンター`: PCへEnterを送信
 - `⌫`: 入力欄の文字を削除。空の時はPCへBackspace
 - `全解除`: 押しっぱなしになったマウスボタンや修飾キーをPC側で解放
 
-基本はiPhone側でいつも通り日本語入力し、バックスペースや変換もiPhoneキーボード上で済ませてから `送信` を使います。
+基本はスマホ側でいつも通り日本語入力し、バックスペースや変換もスマホのキーボード上で済ませてから `送信` を使います。
 
 ## セキュリティ
 
