@@ -14,13 +14,15 @@ from PIL import Image, ImageDraw
 
 ACCENT = "#34DB9F"
 BACKGROUND = "#111416"
+# 接続中のトレイアイコン。ひと目で「今つながっている」と分かるようにする。
+CONNECTED = "#FF9F1C"
 
 # 元の絵は64x64で描いてあるので、そこからの倍率で各座標を伸縮させる。
 BASE_SIZE = 64
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
-def build_icon_image(size: int = BASE_SIZE) -> Image.Image:
+def build_icon_image(size: int = BASE_SIZE, fill: str = ACCENT) -> Image.Image:
     scale = size / BASE_SIZE
 
     def box(*values: float) -> tuple[float, ...]:
@@ -28,7 +30,7 @@ def build_icon_image(size: int = BASE_SIZE) -> Image.Image:
 
     image = Image.new("RGBA", (size, size), BACKGROUND)
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(box(5, 5, 59, 59), radius=15 * scale, fill=ACCENT)
+    draw.rounded_rectangle(box(5, 5, 59, 59), radius=15 * scale, fill=fill)
     draw.ellipse(box(19, 16, 45, 42), fill=BACKGROUND)
     draw.rectangle(box(29, 37, 35, 52), fill=BACKGROUND)
     return image

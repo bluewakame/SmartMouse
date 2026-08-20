@@ -58,17 +58,17 @@ Windows Defender Firewallの確認が表示されたら「プライベート ネ
 配布ZIPを作る場合は、exeのビルド後にPowerShellで次を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.3
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.4
 ```
 
-`release\SmartMouseReceiver-v0.5.3.zip` に、アプリ本体一式、QR接続案内、バージョン、
+`release\SmartMouseReceiver-v0.5.4.zip` に、アプリ本体一式、QR接続案内、バージョン、
 同梱ファイル全件のSHA-256チェックサムを含む配布物が生成されます。
 
 コード署名する場合は、証明書の拇印を渡します。`-SignBundledBinaries` を付けると
 `_internal` 内のDLL／PYDまで署名します（時間はかかりますが、より疑われにくくなります）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.3 -CertificateThumbprint <拇印>
+powershell -ExecutionPolicy Bypass -File .\package_release.ps1 -Version 0.5.4 -CertificateThumbprint <拇印>
 ```
 
 > Windows向けexeはWindows上でのみビルドできます。また、署名なしのexeではSmartScreenの
@@ -122,7 +122,7 @@ WindowsへInno Setup 6をインストールし、exeのビルド後に次を実�
 powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 ```
 
-`installer\SmartMouseReceiver-Setup-v0.5.3.exe` が生成されます。インストーラーは
+`installer\SmartMouseReceiver-Setup-v0.5.4.exe` が生成されます。インストーラーは
 ショートカット、自動起動、プライベートネットワーク用ファイアウォール規則、
 アンインストールに対応します。
 
@@ -242,6 +242,30 @@ WPA2パーソナルのように接続パスワードを共有するWi-Fiでは�
   意図して出しているので伏せません）。
 - **切断時の状態解放。** 通信が切れた瞬間にドラッグ中でも、`release_all_inputs()` が
   押しっぱなしのボタンと修飾キーをすべて解放します。
+
+### 悪用への備え
+
+このReceiverは、他人のPCで起動されると「持ち主に気付かれないまま、外部から
+マウスとキーボードを操作される」状態を作れてしまいます。両用技術である以上、
+悪用そのものを完全には防げません。
+
+一方で、起動にはPCへの物理的な操作が必要です。それができる相手は、本物の
+リモート操作ツールを入れることも、キーロガーを仕込むこともできます。つまり
+このソフトは、**必要とする物理アクセスより弱いこと**しかできません。画面は
+見えず、ファイルも送れず、同じLAN内からしか繋がりません。
+
+接続をPC側で承認する方式は採っていません。「マウスが壊れて操作できない」
+という本来の用途を壊してしまうためです。代わりに、**防ぐのではなく隠れられなく
+する**方針を取っています。
+
+- **接続時にWindowsの通知を出す。** ウィンドウをトレイへ収納していると画面内の
+  状態表示は見えないため、通知で残します（`connection_watch.py`）。Wi-Fiが不安定な
+  環境では自動再接続を繰り返すので、短い間隔での連続通知は抑えます。
+- **接続中はトレイアイコンの色を変える。** 待機中は緑、接続中はオレンジです。
+- **隠れない。** ウィンドウとトレイアイコンを常に出し、初回はファイアウォールの
+  確認も表示されます。自動起動は既定でオフです。
+- **被害者側への案内を配布物に入れる。** 身に覚えのないこのソフトが動いていた
+  場合の止め方を、同梱の案内に書いています。
 
 ### 使い終わったら
 

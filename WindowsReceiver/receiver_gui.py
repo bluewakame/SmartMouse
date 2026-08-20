@@ -20,7 +20,8 @@ from PIL import Image, ImageTk
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 # タスクトレイとexeのアイコンを同じ絵から作るため、描画はapp_iconへ寄せてある。
-from app_icon import ACCENT, BACKGROUND, build_icon_image
+from app_icon import ACCENT, BACKGROUND, CONNECTED, build_icon_image
+from connection_watch import ConnectionWatcher
 from main import APP_VERSION, HOST, PAIRING_TOKEN, PORT, PROTOCOL_VERSION, app, find_lan_ip, get_lan_ip
 import main as receiver
 from receiver_protocol import build_connection_url, build_page_url, build_service_instance
@@ -51,8 +52,8 @@ logging.basicConfig(
 logger = logging.getLogger(APP_NAME)
 
 
-def tray_image() -> Image.Image:
-    return build_icon_image(64)
+def tray_image(connected: bool = False) -> Image.Image:
+    return build_icon_image(64, CONNECTED if connected else ACCENT)
 
 
 class ReceiverServer:
@@ -155,6 +156,8 @@ class ReceiverWindow:
         self.qr_photo: ImageTk.PhotoImage | None = None
         self.status_text = tk.StringVar(value="受信機を起動しています…")
         self.status_color = SECONDARY
+        # 他人のPCで黙って動かされないよう、接続を検出して知らせる。
+        self.connection = ConnectionWatcher()
         self.startup_enabled = tk.BooleanVar(value=self.is_startup_enabled())
         self.tray = self.make_tray()
 
@@ -297,19 +300,52 @@ class ReceiverWindow:
         return pystray.Icon("SmartMouseReceiver", tray_image(), APP_NAME, menu)
 
     def poll_status(self) -> None:
+        connected = receiver.connected_clients > 0
+
         if self.server.error:
             self.status_text.set("起動できませんでした")
             self.status_dot.configure(fg="#FF5C5C")
-        elif receiver.connected_clients > 0:
-            self.status_text.set("iPhoneと接続済み")
-            self.status_dot.configure(fg=ACCENT)
+        elif connected:
+            self.status_text.set("スマホと接続中（操作されています）")
+            self.status_dot.configure(fg=CONNECTED)
         elif self.server.running:
             self.status_text.set("接続待機中")
             self.status_dot.configure(fg="#F0B84B")
         else:
             self.status_text.set("受信機を起動しています…")
             self.status_dot.configure(fg=SECONDARY)
+
+        was_connected = self.connection.connected
+        if self.connection.update(connected, time.monotonic()):
+            self.announce_connection()
+        if connected != was_connected:
+            self.refresh_tray_icon(connected)
+
         self.root.after(500, self.poll_status)
+
+    def announce_connection(self) -> None:
+        """スマホが繋がったことをWindowsの通知で知らせる。
+
+        ウィンドウを閉じてトレイに入れていると、画面内の状態表示は見えない。
+        通知なら履歴に残るので、席を外していた持ち主があとから気付ける。
+        """
+        try:
+            self.tray.notify(
+                "スマートフォンがこのPCの操作を開始しました。\n"
+                "心当たりが無い場合は、タスクトレイのSmartMouseアイコンを"
+                "右クリックして「終了」を選んでください。",
+                APP_NAME,
+            )
+        except Exception:
+            # 通知はOSや環境によっては出せない。出せなくても動作は続ける。
+            pass
+
+    def refresh_tray_icon(self, connected: bool) -> None:
+        """接続中はトレイアイコンの色を変える。"""
+        try:
+            self.tray.icon = tray_image(connected)
+        except Exception:
+            pass
 
     def hide_to_tray(self) -> None:
         self.root.withdraw()
